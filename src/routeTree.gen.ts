@@ -9,38 +9,226 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppValuationsRouteImport } from './routes/app.valuations'
+import { Route as AppUsersRouteImport } from './routes/app.users'
+import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppReportsRouteImport } from './routes/app.reports'
+import { Route as AppProjectsRouteImport } from './routes/app.projects'
+import { Route as AppMetradosRouteImport } from './routes/app.metrados'
+import { Route as AppMemoriasRouteImport } from './routes/app.memorias'
+import { Route as AppLiquidationRouteImport } from './routes/app.liquidation'
+import { Route as AppDocumentsRouteImport } from './routes/app.documents'
+import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
+import { Route as AppBudgetsRouteImport } from './routes/app.budgets'
+import { Route as AppApprovalsRouteImport } from './routes/app.approvals'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppValuationsRoute = AppValuationsRouteImport.update({
+  id: '/valuations',
+  path: '/valuations',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProjectsRoute = AppProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMetradosRoute = AppMetradosRouteImport.update({
+  id: '/metrados',
+  path: '/metrados',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMemoriasRoute = AppMemoriasRouteImport.update({
+  id: '/memorias',
+  path: '/memorias',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLiquidationRoute = AppLiquidationRouteImport.update({
+  id: '/liquidation',
+  path: '/liquidation',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDocumentsRoute = AppDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBudgetsRoute = AppBudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApprovalsRoute = AppApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/app/approvals': typeof AppApprovalsRoute
+  '/app/budgets': typeof AppBudgetsRoute
+  '/app/dashboard': typeof AppDashboardRoute
+  '/app/documents': typeof AppDocumentsRoute
+  '/app/liquidation': typeof AppLiquidationRoute
+  '/app/memorias': typeof AppMemoriasRoute
+  '/app/metrados': typeof AppMetradosRoute
+  '/app/projects': typeof AppProjectsRoute
+  '/app/reports': typeof AppReportsRoute
+  '/app/settings': typeof AppSettingsRoute
+  '/app/users': typeof AppUsersRoute
+  '/app/valuations': typeof AppValuationsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/app/approvals': typeof AppApprovalsRoute
+  '/app/budgets': typeof AppBudgetsRoute
+  '/app/dashboard': typeof AppDashboardRoute
+  '/app/documents': typeof AppDocumentsRoute
+  '/app/liquidation': typeof AppLiquidationRoute
+  '/app/memorias': typeof AppMemoriasRoute
+  '/app/metrados': typeof AppMetradosRoute
+  '/app/projects': typeof AppProjectsRoute
+  '/app/reports': typeof AppReportsRoute
+  '/app/settings': typeof AppSettingsRoute
+  '/app/users': typeof AppUsersRoute
+  '/app/valuations': typeof AppValuationsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/app/approvals': typeof AppApprovalsRoute
+  '/app/budgets': typeof AppBudgetsRoute
+  '/app/dashboard': typeof AppDashboardRoute
+  '/app/documents': typeof AppDocumentsRoute
+  '/app/liquidation': typeof AppLiquidationRoute
+  '/app/memorias': typeof AppMemoriasRoute
+  '/app/metrados': typeof AppMetradosRoute
+  '/app/projects': typeof AppProjectsRoute
+  '/app/reports': typeof AppReportsRoute
+  '/app/settings': typeof AppSettingsRoute
+  '/app/users': typeof AppUsersRoute
+  '/app/valuations': typeof AppValuationsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/login'
+    | '/app/approvals'
+    | '/app/budgets'
+    | '/app/dashboard'
+    | '/app/documents'
+    | '/app/liquidation'
+    | '/app/memorias'
+    | '/app/metrados'
+    | '/app/projects'
+    | '/app/reports'
+    | '/app/settings'
+    | '/app/users'
+    | '/app/valuations'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/app'
+    | '/login'
+    | '/app/approvals'
+    | '/app/budgets'
+    | '/app/dashboard'
+    | '/app/documents'
+    | '/app/liquidation'
+    | '/app/memorias'
+    | '/app/metrados'
+    | '/app/projects'
+    | '/app/reports'
+    | '/app/settings'
+    | '/app/users'
+    | '/app/valuations'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/login'
+    | '/app/approvals'
+    | '/app/budgets'
+    | '/app/dashboard'
+    | '/app/documents'
+    | '/app/liquidation'
+    | '/app/memorias'
+    | '/app/metrados'
+    | '/app/projects'
+    | '/app/reports'
+    | '/app/settings'
+    | '/app/users'
+    | '/app/valuations'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,12 +236,139 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/valuations': {
+      id: '/app/valuations'
+      path: '/valuations'
+      fullPath: '/app/valuations'
+      preLoaderRoute: typeof AppValuationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/users': {
+      id: '/app/users'
+      path: '/users'
+      fullPath: '/app/users'
+      preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/settings': {
+      id: '/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/reports': {
+      id: '/app/reports'
+      path: '/reports'
+      fullPath: '/app/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/projects': {
+      id: '/app/projects'
+      path: '/projects'
+      fullPath: '/app/projects'
+      preLoaderRoute: typeof AppProjectsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/metrados': {
+      id: '/app/metrados'
+      path: '/metrados'
+      fullPath: '/app/metrados'
+      preLoaderRoute: typeof AppMetradosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/memorias': {
+      id: '/app/memorias'
+      path: '/memorias'
+      fullPath: '/app/memorias'
+      preLoaderRoute: typeof AppMemoriasRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/liquidation': {
+      id: '/app/liquidation'
+      path: '/liquidation'
+      fullPath: '/app/liquidation'
+      preLoaderRoute: typeof AppLiquidationRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/documents': {
+      id: '/app/documents'
+      path: '/documents'
+      fullPath: '/app/documents'
+      preLoaderRoute: typeof AppDocumentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/dashboard': {
+      id: '/app/dashboard'
+      path: '/dashboard'
+      fullPath: '/app/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/budgets': {
+      id: '/app/budgets'
+      path: '/budgets'
+      fullPath: '/app/budgets'
+      preLoaderRoute: typeof AppBudgetsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/approvals': {
+      id: '/app/approvals'
+      path: '/approvals'
+      fullPath: '/app/approvals'
+      preLoaderRoute: typeof AppApprovalsRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppApprovalsRoute: typeof AppApprovalsRoute
+  AppBudgetsRoute: typeof AppBudgetsRoute
+  AppDashboardRoute: typeof AppDashboardRoute
+  AppDocumentsRoute: typeof AppDocumentsRoute
+  AppLiquidationRoute: typeof AppLiquidationRoute
+  AppMemoriasRoute: typeof AppMemoriasRoute
+  AppMetradosRoute: typeof AppMetradosRoute
+  AppProjectsRoute: typeof AppProjectsRoute
+  AppReportsRoute: typeof AppReportsRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppUsersRoute: typeof AppUsersRoute
+  AppValuationsRoute: typeof AppValuationsRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppApprovalsRoute: AppApprovalsRoute,
+  AppBudgetsRoute: AppBudgetsRoute,
+  AppDashboardRoute: AppDashboardRoute,
+  AppDocumentsRoute: AppDocumentsRoute,
+  AppLiquidationRoute: AppLiquidationRoute,
+  AppMemoriasRoute: AppMemoriasRoute,
+  AppMetradosRoute: AppMetradosRoute,
+  AppProjectsRoute: AppProjectsRoute,
+  AppReportsRoute: AppReportsRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppUsersRoute: AppUsersRoute,
+  AppValuationsRoute: AppValuationsRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
