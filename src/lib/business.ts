@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import type {
   AppRole,
   AuditSummary,
+  BudgetColumnKey,
   BudgetDetectionResult,
   BudgetPreviewRow,
   ContractType,
@@ -185,7 +186,116 @@ function normalizeHeader(value: string) {
     .normalize("NFD")
     .replace(/[^a-z0-9\s]/g, "")
     .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeBudgetCell(value: unknown) {
+  return normalizeHeader(String(value ?? ""));
+}
+
+function parseBudgetNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+
+  const sanitized = raw.replace(/[^\d,.-]/g, "").replace(/(?!^)-/g, "");
+  if (!sanitized) return 0;
+
+  const lastComma = sanitized.lastIndexOf(",");
+  const lastDot = sanitized.lastIndexOf(".");
+
+  if (lastComma > -1 && lastDot > -1) {
+    const decimalSeparator = lastComma > lastDot ? "," : ".";
+    const normalized = sanitized
+      .replace(decimalSeparator === "," ? /\./g : /,/g, "")
+      .replace(decimalSeparator, ".");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (lastComma > -1) {
+    const normalized = /^-?\d+(,\d{1,2})$/.test(sanitized)
+      ? sanitized.replace(",", ".")
+      : sanitized.replace(/,/g, "");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (lastDot > -1) {
+    const normalized = /^-?\d+(\.\d{1,2})$/.test(sanitized)
+      ? sanitized
+      : sanitized.replace(/\./g, "");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const parsed = Number(sanitized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function matchesBudgetAlias(cell: string, alias: string) {
+  if (!cell || !alias) return false;
+
+  const compactCell = cell.replace(/\s+/g, "");
+  const compactAlias = alias.replace(/\s+/g, "");
+
+  return cell === alias || compactCell === compactAlias || cell.includes(alias) || compactCell.includes(compactAlias);
+}
+
+type BudgetHeaderMatch = {
+  rowIndex: number;
+  headerDepth: 1 | 2;
+  score: number;
+  mapping: Partial<Record<BudgetColumnKey, { index: number; label: string }>>;
+};
+
+function detectBudgetHeader(rows: unknown[][], synonyms: Record<string, string[]>): BudgetHeaderMatch | null {
+  const requiredFields: BudgetColumnKey[] = ["description", "unit", "base_quantity", "unit_price"];
+  let bestMatch: BudgetHeaderMatch | null = null;
+
+  const maxRowsToInspect = Math.min(rows.length, 40);
+
+  for (let rowIndex = 0; rowIndex < maxRowsToInspect; rowIndex += 1) {
+    const currentRow = rows[rowIndex] ?? [];
+    const nextRow = rows[rowIndex + 1] ?? [];
+    const candidates: Array<{ headerDepth: 1 | 2; cells: string[] }> = [
+      { headerDepth: 1, cells: currentRow.map((cell) => String(cell ?? "").trim()) },
+      {
+        headerDepth: 2,
+        cells: Array.from({ length: Math.max(currentRow.length, nextRow.length) }, (_, columnIndex) =>
+          [currentRow[columnIndex], nextRow[columnIndex]].filter(Boolean).join(" ").trim(),
+        ),
+      },
+    ];
+
+    candidates.forEach(({ headerDepth, cells }) => {
+      const mapping = Object.entries(synonyms).reduce<Partial<Record<BudgetColumnKey, { index: number; label: string }>>>((accumulator, [field, aliases]) => {
+        const matchIndex = cells.findIndex((cell) => {
+          const normalizedCell = normalizeBudgetCell(cell);
+          return aliases.some((alias) => matchesBudgetAlias(normalizedCell, normalizeHeader(alias)));
+        });
+
+        if (matchIndex >= 0) {
+          accumulator[field as BudgetColumnKey] = { index: matchIndex, label: cells[matchIndex] };
+        }
+
+        return accumulator;
+      }, {});
+
+      const score = Object.keys(mapping).length;
+      const requiredMatches = requiredFields.filter((field) => mapping[field]).length;
+
+      if (requiredMatches < 3 || score === 0) return;
+
+      if (!bestMatch || score > bestMatch.score || (score === bestMatch.score && headerDepth < bestMatch.headerDepth)) {
+        bestMatch = { rowIndex, headerDepth, score, mapping };
+      }
+    });
+  }
+
+  return bestMatch;
 }
 
 export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult> {
@@ -196,30 +306,42 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
         const workbook = XLSX.read(reader.result, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: null });
-        const headers = Object.keys(rows[0] || {});
+        const sheetRows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+          header: 1,
+          defval: null,
+          blankrows: false,
+        });
 
         const mapping: BudgetDetectionResult["mapping"] = {};
         const warnings: string[] = [];
 
-        const headerLookup = headers.reduce<Record<string, string>>((accumulator, header) => {
-          accumulator[normalizeHeader(header)] = header;
-          return accumulator;
-        }, {});
-
         const synonyms: Record<string, string[]> = {
-          item_code: ["codigo", "codigo partida", "item", "partida", "cod partida"],
+          item_code: ["item", "item codigo", "item / item / codigo", "codigo", "codigo partida", "cod partida", "item partida", "partida"],
           description: ["descripcion", "descripcion partida", "detalle", "concepto"],
-          unit: ["unidad", "und", "u m", "um"],
+          unit: ["und", "und.", "unidad", "u m", "u.m.", "um"],
           base_quantity: ["metrado", "cantidad", "cantidad base", "metrados"],
-          unit_price: ["precio unitario", "p unitario", "precio", "pu"],
-          partial_amount: ["parcial", "monto", "importe", "total"],
+          unit_price: ["precio s", "precio unitario", "p unitario", "p.u.", "pu", "precio"],
+          partial_amount: ["parcial s", "parcial", "subtotal", "importe", "monto", "total"],
           category: ["categoria", "capitulo", "especialidad"],
         };
 
-        Object.entries(synonyms).forEach(([field, candidates]) => {
-          const found = candidates.find((candidate) => headerLookup[candidate]);
-          if (found) mapping[field as keyof typeof mapping] = headerLookup[found];
+        const detectedHeader = detectBudgetHeader(sheetRows, synonyms);
+
+        if (!detectedHeader) {
+          resolve({
+            mapping,
+            rows: [],
+            warnings: ["No se encontró una tabla válida del presupuesto. Verifica que el archivo tenga encabezados reconocibles como descripción, unidad, metrado y precio unitario."],
+          });
+          return;
+        }
+
+        const headerMatch = detectedHeader;
+
+        Object.entries(headerMatch.mapping).forEach(([field, value]) => {
+          if (value) {
+            mapping[field as BudgetColumnKey] = value.label;
+          }
         });
 
         if (!mapping.description) warnings.push("No se detectó automáticamente la columna de descripción.");
@@ -227,25 +349,39 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
         if (!mapping.base_quantity) warnings.push("No se detectó automáticamente la columna de metrado base.");
         if (!mapping.unit_price) warnings.push("No se detectó automáticamente la columna de precio unitario.");
 
-        const parsedRows = rows.flatMap<BudgetPreviewRow>((row) => {
-            const description = String(row[mapping.description || ""] || "").trim();
-            const unit = String(row[mapping.unit || ""] || "").trim();
-            const baseQuantity = Number(row[mapping.base_quantity || ""] || 0);
-            const unitPrice = Number(row[mapping.unit_price || ""] || 0);
-            const partialAmount = Number(row[mapping.partial_amount || ""] || baseQuantity * unitPrice || 0);
+        const dataRows = sheetRows.slice(headerMatch.rowIndex + headerMatch.headerDepth);
 
-            if (!description || !unit) return [];
+        const parsedRows = dataRows.flatMap<BudgetPreviewRow>((row) => {
+          const getValue = (field: BudgetColumnKey) => {
+            const column = headerMatch.mapping[field];
+            return column ? row[column.index] : null;
+          };
 
-            return [{
-              item_code: mapping.item_code ? String(row[mapping.item_code] || "").trim() || undefined : undefined,
-              description,
-              unit,
-              base_quantity: Number.isFinite(baseQuantity) ? baseQuantity : 0,
-              unit_price: Number.isFinite(unitPrice) ? unitPrice : 0,
-              partial_amount: Number.isFinite(partialAmount) ? partialAmount : 0,
-              category: mapping.category ? String(row[mapping.category] || "").trim() || undefined : undefined,
-            }];
-          });
+          const description = String(getValue("description") ?? "").trim();
+          const unit = String(getValue("unit") ?? "").trim();
+          const baseQuantity = parseBudgetNumber(getValue("base_quantity"));
+          const unitPrice = parseBudgetNumber(getValue("unit_price"));
+          const partialAmount = parseBudgetNumber(getValue("partial_amount")) || baseQuantity * unitPrice;
+          const itemCode = String(getValue("item_code") ?? "").trim();
+          const category = String(getValue("category") ?? "").trim();
+
+          if (!description || !unit) return [];
+          if (!/[a-z0-9]/i.test(description)) return [];
+
+          return [{
+            item_code: itemCode || undefined,
+            description,
+            unit,
+            base_quantity: baseQuantity,
+            unit_price: unitPrice,
+            partial_amount: partialAmount,
+            category: category || undefined,
+          }];
+        });
+
+        if (!parsedRows.length) {
+          warnings.push("Se detectaron encabezados, pero no se encontraron filas válidas de partidas debajo de la tabla.");
+        }
 
         resolve({ mapping, rows: parsedRows, warnings });
       } catch (error) {
