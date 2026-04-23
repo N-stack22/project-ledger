@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import type {
   AppRole,
   AuditSummary,
+  BudgetColumnKey,
   BudgetDetectionResult,
   BudgetPreviewRow,
   ContractType,
@@ -244,13 +245,15 @@ function matchesBudgetAlias(cell: string, alias: string) {
 }
 
 function detectBudgetHeader(rows: unknown[][], synonyms: Record<string, string[]>) {
-  const requiredFields = ["description", "unit", "base_quantity", "unit_price"];
-  let bestMatch: {
+  type BudgetHeaderMatch = {
     rowIndex: number;
     headerDepth: 1 | 2;
     score: number;
-    mapping: Record<string, { index: number; label: string }>;
-  } | null = null;
+    mapping: Partial<Record<BudgetColumnKey, { index: number; label: string }>>;
+  };
+
+  const requiredFields = ["description", "unit", "base_quantity", "unit_price"];
+  let bestMatch: BudgetHeaderMatch | null = null;
 
   const maxRowsToInspect = Math.min(rows.length, 40);
 
@@ -268,14 +271,14 @@ function detectBudgetHeader(rows: unknown[][], synonyms: Record<string, string[]
     ];
 
     candidates.forEach(({ headerDepth, cells }) => {
-      const mapping = Object.entries(synonyms).reduce<Record<string, { index: number; label: string }>>((accumulator, [field, aliases]) => {
+      const mapping = Object.entries(synonyms).reduce<Partial<Record<BudgetColumnKey, { index: number; label: string }>>>((accumulator, [field, aliases]) => {
         const matchIndex = cells.findIndex((cell) => {
           const normalizedCell = normalizeBudgetCell(cell);
           return aliases.some((alias) => matchesBudgetAlias(normalizedCell, normalizeHeader(alias)));
         });
 
         if (matchIndex >= 0) {
-          accumulator[field] = { index: matchIndex, label: cells[matchIndex] };
+          accumulator[field as BudgetColumnKey] = { index: matchIndex, label: cells[matchIndex] };
         }
 
         return accumulator;
@@ -334,7 +337,9 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
         }
 
         Object.entries(detectedHeader.mapping).forEach(([field, value]) => {
-          mapping[field as keyof typeof mapping] = value.label;
+          if (value) {
+            mapping[field as BudgetColumnKey] = value.label;
+          }
         });
 
         if (!mapping.description) warnings.push("No se detectó automáticamente la columna de descripción.");
@@ -345,7 +350,7 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
         const dataRows = sheetRows.slice(detectedHeader.rowIndex + detectedHeader.headerDepth);
 
         const parsedRows = dataRows.flatMap<BudgetPreviewRow>((row) => {
-          const getValue = (field: keyof typeof detectedHeader.mapping) => {
+          const getValue = (field: BudgetColumnKey) => {
             const column = detectedHeader.mapping[field];
             return column ? row[column.index] : null;
           };
