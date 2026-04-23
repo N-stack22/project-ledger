@@ -227,17 +227,16 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
         if (!mapping.base_quantity) warnings.push("No se detectó automáticamente la columna de metrado base.");
         if (!mapping.unit_price) warnings.push("No se detectó automáticamente la columna de precio unitario.");
 
-        const parsedRows: BudgetPreviewRow[] = rows
-          .map((row) => {
+        const parsedRows = rows.flatMap<BudgetPreviewRow>((row) => {
             const description = String(row[mapping.description || ""] || "").trim();
             const unit = String(row[mapping.unit || ""] || "").trim();
             const baseQuantity = Number(row[mapping.base_quantity || ""] || 0);
             const unitPrice = Number(row[mapping.unit_price || ""] || 0);
             const partialAmount = Number(row[mapping.partial_amount || ""] || baseQuantity * unitPrice || 0);
 
-            if (!description || !unit) return null;
+            if (!description || !unit) return [];
 
-            return {
+            return [{
               item_code: mapping.item_code ? String(row[mapping.item_code] || "").trim() || undefined : undefined,
               description,
               unit,
@@ -245,9 +244,8 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
               unit_price: Number.isFinite(unitPrice) ? unitPrice : 0,
               partial_amount: Number.isFinite(partialAmount) ? partialAmount : 0,
               category: mapping.category ? String(row[mapping.category] || "").trim() || undefined : undefined,
-            };
-          })
-          .filter((row): row is BudgetPreviewRow => Boolean(row));
+            }];
+          });
 
         resolve({ mapping, rows: parsedRows, warnings });
       } catch (error) {

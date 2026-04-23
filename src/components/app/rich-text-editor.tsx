@@ -18,6 +18,10 @@ const toolbar = [
   { icon: Pilcrow, command: "formatBlock", value: "p", label: "Párrafo" },
 ] as const;
 
+function getToolbarValue(item: (typeof toolbar)[number]) {
+  return "value" in item ? item.value : undefined;
+}
+
 export function RichTextEditor({ value, onChange, className }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +48,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
             className="h-8 w-8"
             onMouseDown={(event) => {
               event.preventDefault();
-              applyCommand(item.command, item.value);
+              applyCommand(item.command, getToolbarValue(item));
             }}
           >
             <item.icon className="h-4 w-4" />
