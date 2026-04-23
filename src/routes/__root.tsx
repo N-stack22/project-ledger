@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AuthProvider } from "@/lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -28,15 +30,13 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: "JJ&PP Ingenieros | Gestión de obras" },
+        { name: "description", content: "Sistema web para gestionar metrados, valorizaciones mensuales y liquidación de obras de ingeniería civil." },
+        { property: "og:title", content: "JJ&PP Ingenieros | Gestión de obras" },
+        { property: "og:description", content: "Control mensual de metrados, memoria valorizada, valorizaciones y liquidación final." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
@@ -50,7 +50,7 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundComponent,
 });
 
-function RootShell({ children }: { children: React.ReactNode }) {
+function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
@@ -65,5 +65,9 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return (
+    <AuthProvider>
+      <Outlet />
+    </AuthProvider>
+  );
 }
