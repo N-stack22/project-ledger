@@ -119,8 +119,27 @@ export function LoginPage() {
   const { signIn, signUp, isAuthenticated, loading } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", fullName: "" });
+
+  const getAuthErrorMessage = (submitError: unknown) => {
+    const message = submitError instanceof Error ? submitError.message : "";
+
+    if (message.includes("Email not confirmed") || message.includes("email_not_confirmed")) {
+      return "Tu cuenta existe, pero primero debes confirmar el correo desde el enlace enviado a tu bandeja de entrada.";
+    }
+
+    if (message.includes("Invalid login credentials") || message.includes("invalid_credentials")) {
+      return "Correo o contraseña incorrectos. Si acabas de registrarte varias veces con el mismo correo, usa la contraseña del primer registro confirmado por el sistema.";
+    }
+
+    if (message.includes("weak_password")) {
+      return "La contraseña es demasiado débil. Usa una más segura y difícil de adivinar.";
+    }
+
+    return submitError instanceof Error ? submitError.message : "No se pudo completar la operación.";
+  };
 
   if (!loading && isAuthenticated) {
     void navigate({ to: "/app/dashboard" });
@@ -130,6 +149,7 @@ export function LoginPage() {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       if (mode === "signin") {
         await signIn(form.email, form.password);
@@ -137,9 +157,10 @@ export function LoginPage() {
       } else {
         await signUp({ email: form.email, password: form.password, fullName: form.fullName });
         setMode("signin");
+        setNotice("Cuenta creada. Revisa tu correo y confirma tu acceso antes de iniciar sesión.");
       }
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "No se pudo completar la operación.");
+      setError(getAuthErrorMessage(submitError));
     } finally {
       setBusy(false);
     }
@@ -198,11 +219,16 @@ export function LoginPage() {
               <label className="text-sm font-medium text-foreground">Contraseña</label>
               <Input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} required />
             </div>
+            {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
             <Button className="w-full" type="submit" disabled={busy}>
               {busy ? "Procesando…" : mode === "signin" ? "Ingresar" : "Crear cuenta"}
             </Button>
-            <Button className="w-full" type="button" variant="outline" onClick={() => setMode((current) => (current === "signin" ? "signup" : "signin"))}>
+            <Button className="w-full" type="button" variant="outline" onClick={() => {
+              setError(null);
+              setNotice(null);
+              setMode((current) => (current === "signin" ? "signup" : "signin"));
+            }}>
               {mode === "signin" ? "Registrar primer acceso" : "Ya tengo cuenta"}
             </Button>
           </form>
