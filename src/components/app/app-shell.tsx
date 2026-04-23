@@ -116,7 +116,7 @@ function AppSidebar() {
             <p className="truncate text-sm font-medium text-sidebar-foreground">{profile?.full_name || "Usuario"}</p>
             <div className="flex flex-wrap gap-1">
               {roles.map((role) => (
-                <Badge key={role} variant="sidebar" className="text-[11px]">
+                <Badge key={role} variant="outline" className="border-sidebar-border bg-sidebar-accent text-[11px] text-sidebar-accent-foreground">
                   {roleLabels[role]}
                 </Badge>
               ))}
