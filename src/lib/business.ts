@@ -244,15 +244,15 @@ function matchesBudgetAlias(cell: string, alias: string) {
   return cell === alias || compactCell === compactAlias || cell.includes(alias) || compactCell.includes(compactAlias);
 }
 
-function detectBudgetHeader(rows: unknown[][], synonyms: Record<string, string[]>) {
-  type BudgetHeaderMatch = {
-    rowIndex: number;
-    headerDepth: 1 | 2;
-    score: number;
-    mapping: Partial<Record<BudgetColumnKey, { index: number; label: string }>>;
-  };
+type BudgetHeaderMatch = {
+  rowIndex: number;
+  headerDepth: 1 | 2;
+  score: number;
+  mapping: Partial<Record<BudgetColumnKey, { index: number; label: string }>>;
+};
 
-  const requiredFields = ["description", "unit", "base_quantity", "unit_price"];
+function detectBudgetHeader(rows: unknown[][], synonyms: Record<string, string[]>): BudgetHeaderMatch | null {
+  const requiredFields: BudgetColumnKey[] = ["description", "unit", "base_quantity", "unit_price"];
   let bestMatch: BudgetHeaderMatch | null = null;
 
   const maxRowsToInspect = Math.min(rows.length, 40);
@@ -336,7 +336,9 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
           return;
         }
 
-        Object.entries(detectedHeader.mapping).forEach(([field, value]) => {
+        const headerMatch = detectedHeader;
+
+        Object.entries(headerMatch.mapping).forEach(([field, value]) => {
           if (value) {
             mapping[field as BudgetColumnKey] = value.label;
           }
@@ -347,11 +349,11 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
         if (!mapping.base_quantity) warnings.push("No se detectó automáticamente la columna de metrado base.");
         if (!mapping.unit_price) warnings.push("No se detectó automáticamente la columna de precio unitario.");
 
-        const dataRows = sheetRows.slice(detectedHeader.rowIndex + detectedHeader.headerDepth);
+        const dataRows = sheetRows.slice(headerMatch.rowIndex + headerMatch.headerDepth);
 
         const parsedRows = dataRows.flatMap<BudgetPreviewRow>((row) => {
           const getValue = (field: BudgetColumnKey) => {
-            const column = detectedHeader.mapping[field];
+            const column = headerMatch.mapping[field];
             return column ? row[column.index] : null;
           };
 
