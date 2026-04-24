@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/components/app/workspace-provider";
+import { isFichaTecnicaIncomplete } from "@/components/app/workspace-pages";
 import { useAuth } from "@/lib/auth";
 import {
   buildValuationTable,
@@ -508,17 +509,28 @@ function ExpedientePage() {
           </Card>
 
           <Card>
-            <CardContent className="flex items-center justify-between gap-3 pt-6">
+            <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
-                Antes de generar, completa la ficha técnica del proyecto en <strong>Proyectos → Editar</strong> (entidad, contratista, modalidad, etc.).
+                {isFichaTecnicaIncomplete(project) ? (
+                  <span className="text-destructive">
+                    La ficha técnica del proyecto está incompleta. Complétala antes de generar el expediente.
+                  </span>
+                ) : (
+                  <span>Ficha técnica completa. Listo para generar el expediente.</span>
+                )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {isFichaTecnicaIncomplete(project) && (
+                  <Button variant="secondary" asChild>
+                    <Link to="/app/projects">Completar ficha técnica</Link>
+                  </Button>
+                )}
                 {lastUrl && (
                   <Button variant="outline" asChild>
                     <a href={lastUrl} target="_blank" rel="noreferrer"><Download className="mr-1 h-4 w-4" />Descargar último</a>
                   </Button>
                 )}
-                <Button onClick={generatePdf} disabled={generating}>
+                <Button onClick={generatePdf} disabled={generating || isFichaTecnicaIncomplete(project)}>
                   {generating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}
                   Generar Expediente PDF
                 </Button>
