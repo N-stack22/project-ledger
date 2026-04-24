@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,7 +26,7 @@ import {
   type DeductionLine,
   type MetradoLine,
 } from "@/lib/expediente";
-import { generateExpediente } from "@/lib/expediente-pdf.functions";
+import { generateExpedienteClientPdf } from "@/lib/expediente-client-pdf";
 
 export const Route = createFileRoute("/app/expediente")({
   component: ExpedientePage,
@@ -67,8 +66,6 @@ function ExpedientePage() {
   const [generating, setGenerating] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-
-  const generateFn = useServerFn(generateExpediente);
 
   const project = projects.find((p) => p.id === projectId);
   const period = periods.find((p) => p.id === periodId);
