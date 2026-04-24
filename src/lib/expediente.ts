@@ -33,7 +33,7 @@ export type MetradoLine = {
 
 export type DeductionLine = {
   id: string;
-  deduction_type: keyof typeof deductionLabels;
+  deduction_type: DeductionType;
   description: string | null;
   amount: number;
 };
