@@ -637,16 +637,23 @@ export function ProjectsPage() {
           </Card>
         ) : (
           <SectionTable
-            headers={["Código", "Proyecto", "Cliente", "Ubicación", "Contrato", "Monto", "Estado"]}
-            rows={projects.map((project) => [
-              project.code,
-              project.name,
-              project.client_name || "—",
-              project.location || "—",
-              contractTypeLabels[project.contract_type],
-              formatCurrency(Number(project.contract_amount), project.currency_code),
-              <Badge key={project.id} variant="outline">{projectStatusLabels[project.status]}</Badge>,
-            ])}
+            headers={["Código", "Proyecto", "Cliente", "Ubicación", "Contrato", "Monto", "Estado", "Ficha técnica", "Acciones"]}
+            rows={projects.map((project) => {
+              const incomplete = isFichaTecnicaIncomplete(project);
+              return [
+                project.code,
+                project.name,
+                project.client_name || "—",
+                project.location || "—",
+                contractTypeLabels[project.contract_type],
+                formatCurrency(Number(project.contract_amount), project.currency_code),
+                <Badge key={`s-${project.id}`} variant="outline">{projectStatusLabels[project.status]}</Badge>,
+                <Badge key={`f-${project.id}`} variant={incomplete ? "destructive" : "secondary"}>
+                  {incomplete ? "Incompleta" : "Completa"}
+                </Badge>,
+                <EditProjectDialog key={`e-${project.id}`} project={project} onSaved={refresh} />,
+              ];
+            })}
           />
         )}
       </PageLayout>
