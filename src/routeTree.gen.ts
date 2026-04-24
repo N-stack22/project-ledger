@@ -20,6 +20,7 @@ import { Route as AppProjectsRouteImport } from './routes/app.projects'
 import { Route as AppMetradosRouteImport } from './routes/app.metrados'
 import { Route as AppMemoriasRouteImport } from './routes/app.memorias'
 import { Route as AppLiquidationRouteImport } from './routes/app.liquidation'
+import { Route as AppExpedienteRouteImport } from './routes/app.expediente'
 import { Route as AppDocumentsRouteImport } from './routes/app.documents'
 import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
 import { Route as AppBudgetsRouteImport } from './routes/app.budgets'
@@ -80,6 +81,11 @@ const AppLiquidationRoute = AppLiquidationRouteImport.update({
   path: '/liquidation',
   getParentRoute: () => AppRoute,
 } as any)
+const AppExpedienteRoute = AppExpedienteRouteImport.update({
+  id: '/expediente',
+  path: '/expediente',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDocumentsRoute = AppDocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/app/budgets': typeof AppBudgetsRoute
   '/app/dashboard': typeof AppDashboardRoute
   '/app/documents': typeof AppDocumentsRoute
+  '/app/expediente': typeof AppExpedienteRoute
   '/app/liquidation': typeof AppLiquidationRoute
   '/app/memorias': typeof AppMemoriasRoute
   '/app/metrados': typeof AppMetradosRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/app/budgets': typeof AppBudgetsRoute
   '/app/dashboard': typeof AppDashboardRoute
   '/app/documents': typeof AppDocumentsRoute
+  '/app/expediente': typeof AppExpedienteRoute
   '/app/liquidation': typeof AppLiquidationRoute
   '/app/memorias': typeof AppMemoriasRoute
   '/app/metrados': typeof AppMetradosRoute
@@ -144,6 +152,7 @@ export interface FileRoutesById {
   '/app/budgets': typeof AppBudgetsRoute
   '/app/dashboard': typeof AppDashboardRoute
   '/app/documents': typeof AppDocumentsRoute
+  '/app/expediente': typeof AppExpedienteRoute
   '/app/liquidation': typeof AppLiquidationRoute
   '/app/memorias': typeof AppMemoriasRoute
   '/app/metrados': typeof AppMetradosRoute
@@ -163,6 +172,7 @@ export interface FileRouteTypes {
     | '/app/budgets'
     | '/app/dashboard'
     | '/app/documents'
+    | '/app/expediente'
     | '/app/liquidation'
     | '/app/memorias'
     | '/app/metrados'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/app/budgets'
     | '/app/dashboard'
     | '/app/documents'
+    | '/app/expediente'
     | '/app/liquidation'
     | '/app/memorias'
     | '/app/metrados'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/app/budgets'
     | '/app/dashboard'
     | '/app/documents'
+    | '/app/expediente'
     | '/app/liquidation'
     | '/app/memorias'
     | '/app/metrados'
@@ -292,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLiquidationRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/expediente': {
+      id: '/app/expediente'
+      path: '/expediente'
+      fullPath: '/app/expediente'
+      preLoaderRoute: typeof AppExpedienteRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/documents': {
       id: '/app/documents'
       path: '/documents'
@@ -328,6 +347,7 @@ interface AppRouteChildren {
   AppBudgetsRoute: typeof AppBudgetsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppDocumentsRoute: typeof AppDocumentsRoute
+  AppExpedienteRoute: typeof AppExpedienteRoute
   AppLiquidationRoute: typeof AppLiquidationRoute
   AppMemoriasRoute: typeof AppMemoriasRoute
   AppMetradosRoute: typeof AppMetradosRoute
@@ -343,6 +363,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBudgetsRoute: AppBudgetsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppDocumentsRoute: AppDocumentsRoute,
+  AppExpedienteRoute: AppExpedienteRoute,
   AppLiquidationRoute: AppLiquidationRoute,
   AppMemoriasRoute: AppMemoriasRoute,
   AppMetradosRoute: AppMetradosRoute,
@@ -363,3 +384,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
