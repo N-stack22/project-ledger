@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,7 +26,7 @@ import {
   type DeductionLine,
   type MetradoLine,
 } from "@/lib/expediente";
-import { generateExpediente } from "@/lib/expediente-pdf.functions";
+import { generateExpedienteClientPdf } from "@/lib/expediente-client-pdf";
 
 export const Route = createFileRoute("/app/expediente")({
   component: ExpedientePage,
@@ -67,8 +66,6 @@ function ExpedientePage() {
   const [generating, setGenerating] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-
-  const generateFn = useServerFn(generateExpediente);
 
   const project = projects.find((p) => p.id === projectId);
   const period = periods.find((p) => p.id === periodId);
@@ -236,38 +233,39 @@ function ExpedientePage() {
       return;
     }
 
+    if (!project || !period) {
+      toast.error("No se pudieron cargar el proyecto o el período seleccionado.");
+      return;
+    }
+
     setGenerating(true);
     setGenerationError(null);
     const tid = toast.loading("Generando expediente PDF...");
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error("Tu sesión expiró. Vuelve a iniciar sesión para generar el expediente.");
-      }
-
-      const res = await generateFn({ data: { projectId, periodId, accessToken: session.access_token } });
-
-      if (!res?.ok) {
-        throw new Error(res?.error || "Error en server function al generar el expediente.");
-      }
-
-      if (!res.signedUrl) {
-        throw new Error("El expediente se generó, pero no se recibió un enlace de descarga.");
-      }
+      const res = await generateExpedienteClientPdf({
+        project,
+        period,
+        items,
+        currentLines: lines,
+        deductions,
+        valTable,
+        totals: t,
+        totalDeductions,
+        netAmount,
+        currency,
+      });
 
       toast.dismiss(tid);
-      setLastUrl(res.signedUrl);
+      if (lastUrl) URL.revokeObjectURL(lastUrl);
+      setLastUrl(res.url);
       toast.success("Expediente generado correctamente");
 
       const link = document.createElement("a");
-      link.href = res.signedUrl;
+      link.href = res.url;
       link.target = "_blank";
       link.rel = "noreferrer noopener";
-      link.download = res.fileName || "expediente.pdf";
+      link.download = res.fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();
