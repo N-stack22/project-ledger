@@ -325,7 +325,9 @@ export function ProjectsPage() {
     },
   });
 
-  const canCreate = roles.includes("admin") || roles.includes("resident");
+  // Temporal: cualquier usuario autenticado puede crear proyectos.
+  // El control fino por rol (Residente) se reactivará luego.
+  const canCreate = Boolean(user);
 
   const createProject = form.handleSubmit(async (values) => {
     if (!user) return;
