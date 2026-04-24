@@ -323,6 +323,157 @@ export function DashboardPage() {
   );
 }
 
+// ProjectRow type extracted for the edit dialog
+type EditableProject = ReturnType<typeof useWorkspace>["projects"][number];
+
+export function isFichaTecnicaIncomplete(project: EditableProject | undefined | null): boolean {
+  if (!project) return true;
+  const required = [
+    project.entity_name,
+    project.contractor_name,
+    project.supervisor_name,
+    project.resident_name,
+    project.execution_modality,
+    project.location,
+    project.execution_contract,
+    project.supervision_contract,
+    project.start_date,
+    project.planned_end_date,
+  ];
+  if (required.some((v) => !v || String(v).trim() === "")) return true;
+  if (!project.contract_amount || Number(project.contract_amount) <= 0) return true;
+  if (!project.execution_term_days || Number(project.execution_term_days) <= 0) return true;
+  return false;
+}
+
+function EditProjectDialog({ project, onSaved }: { project: EditableProject; onSaved: () => Promise<void> | void }) {
+  const [open, setOpen] = useState(false);
+  const form = useForm<z.infer<typeof fichaTecnicaSchema>>({
+    resolver: zodResolver(fichaTecnicaSchema),
+    defaultValues: {
+      entity_name: project.entity_name ?? "",
+      contractor_name: project.contractor_name ?? "",
+      supervisor_name: project.supervisor_name ?? "",
+      resident_name: project.resident_name ?? "",
+      execution_modality: project.execution_modality ?? "",
+      location: project.location ?? "",
+      execution_contract: project.execution_contract ?? "",
+      supervision_contract: project.supervision_contract ?? "",
+      contract_amount: Number(project.contract_amount ?? 0),
+      start_date: project.start_date ?? "",
+      execution_term_days: project.execution_term_days ?? 0,
+      planned_end_date: project.planned_end_date ?? "",
+      status: project.status,
+    },
+  });
+
+  const submit = form.handleSubmit(async (values) => {
+    const payload = {
+      entity_name: values.entity_name || null,
+      contractor_name: values.contractor_name || null,
+      supervisor_name: values.supervisor_name || null,
+      resident_name: values.resident_name || null,
+      execution_modality: values.execution_modality || null,
+      location: values.location || null,
+      execution_contract: values.execution_contract || null,
+      supervision_contract: values.supervision_contract || null,
+      contract_amount: values.contract_amount,
+      start_date: values.start_date || null,
+      execution_term_days: values.execution_term_days || null,
+      planned_end_date: values.planned_end_date || null,
+      status: values.status,
+    };
+    const { error } = await supabase.from("projects").update(payload).eq("id", project.id);
+    if (error) {
+      form.setError("root", { message: error.message });
+      return;
+    }
+    setOpen(false);
+    await onSaved();
+  });
+
+  const incomplete = isFichaTecnicaIncomplete(project);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant={incomplete ? "default" : "outline"}>
+          {incomplete ? "Completar ficha técnica" : "Editar"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar proyecto · Ficha técnica</DialogTitle>
+          <DialogDescription>
+            Información obligatoria que aparecerá en el Expediente Mensual de Supervisión/Valorización.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form className="space-y-4" onSubmit={submit}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField control={form.control} name="entity_name" render={({ field }) => (
+                <FormItem><FormLabel>Entidad *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Municipalidad / Entidad contratante" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractor_name" render={({ field }) => (
+                <FormItem><FormLabel>Contratista *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="supervisor_name" render={({ field }) => (
+                <FormItem><FormLabel>Supervisor *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="resident_name" render={({ field }) => (
+                <FormItem><FormLabel>Residente *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="execution_modality" render={({ field }) => (
+                <FormItem><FormLabel>Modalidad de ejecución *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Contrata / Administración directa" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="location" render={({ field }) => (
+                <FormItem><FormLabel>Ubicación *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Distrito, provincia, región" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="execution_contract" render={({ field }) => (
+                <FormItem><FormLabel>Contrato de ejecución *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="N° de contrato" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="supervision_contract" render={({ field }) => (
+                <FormItem><FormLabel>Contrato de supervisión *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="N° de contrato" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contract_amount" render={({ field }) => (
+                <FormItem><FormLabel>Monto contractual *</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="start_date" render={({ field }) => (
+                <FormItem><FormLabel>Fecha de inicio *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="execution_term_days" render={({ field }) => (
+                <FormItem><FormLabel>Plazo de ejecución (días) *</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="planned_end_date" render={({ field }) => (
+                <FormItem><FormLabel>Fecha de término *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="status" render={({ field }) => (
+                <FormItem><FormLabel>Estado del proyecto *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {Object.entries(projectStatusLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select><FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            {form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Guardando…" : "Guardar ficha técnica"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ProjectsPage() {
   const { projects, refresh } = useWorkspace();
   const { user, roles } = useAuth();
