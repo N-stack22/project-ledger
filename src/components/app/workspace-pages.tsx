@@ -52,7 +52,7 @@ const projectSchema = z.object({
     errorMap: () => ({ message: "Selecciona un tipo de contrato válido." }),
   }),
   contract_amount: z.coerce.number().min(0),
-  status: z.enum(["draft", "active", "closing", "closed"]).default("draft"),
+  status: z.enum(["draft", "active", "closing", "closed"]),
   start_date: z.string().optional(),
 });
 
