@@ -325,7 +325,9 @@ export function ProjectsPage() {
     },
   });
 
-  const canCreate = roles.includes("admin") || roles.includes("resident");
+  // Temporal: cualquier usuario autenticado puede crear proyectos.
+  // El control fino por rol (Residente) se reactivará luego.
+  const canCreate = Boolean(user);
 
   const createProject = form.handleSubmit(async (values) => {
     if (!user) return;
@@ -351,7 +353,7 @@ export function ProjectsPage() {
     await supabase.from("project_members").insert({
       project_id: data.id,
       user_id: user.id,
-      role: roles.includes("resident") ? "resident" : "admin",
+      role: roles.includes("admin") ? "admin" : "resident",
     });
     form.reset({
       code: "",
