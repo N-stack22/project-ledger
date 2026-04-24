@@ -56,6 +56,22 @@ const projectSchema = z.object({
   start_date: z.string().optional(),
 });
 
+const fichaTecnicaSchema = z.object({
+  entity_name: z.string().trim().max(180).optional(),
+  contractor_name: z.string().trim().max(180).optional(),
+  supervisor_name: z.string().trim().max(180).optional(),
+  resident_name: z.string().trim().max(180).optional(),
+  execution_modality: z.string().trim().max(120).optional(),
+  location: z.string().trim().max(180).optional(),
+  execution_contract: z.string().trim().max(180).optional(),
+  supervision_contract: z.string().trim().max(180).optional(),
+  contract_amount: z.coerce.number().min(0),
+  start_date: z.string().optional(),
+  execution_term_days: z.coerce.number().int().min(0).optional(),
+  planned_end_date: z.string().optional(),
+  status: z.enum(["draft", "active", "closing", "closed"]),
+});
+
 const metradoSchema = z.object({
   project_id: z.string().uuid(),
   item_id: z.string().uuid(),
