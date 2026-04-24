@@ -3,6 +3,7 @@ import {
   BarChart3,
   ClipboardCheck,
   FileSpreadsheet,
+  FileStack,
   FileText,
   FolderKanban,
   Gauge,
