@@ -13,9 +13,12 @@ export const deductionLabels: Record<string, string> = {
   otra: "Otras deducciones",
 };
 
+export type DeductionType = keyof typeof deductionLabels;
+
 export type MetradoLine = {
   id: string;
   item_id: string;
+  period_id?: string;
   group_label: string | null;
   location_ref: string | null;
   description: string | null;
