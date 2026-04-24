@@ -313,7 +313,16 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false);
   const form = useForm<z.infer<typeof projectSchema>>({
     resolver: zodResolver(projectSchema),
-    defaultValues: { contract_type: "precios_unitarios", contract_amount: 0 },
+    defaultValues: {
+      code: "",
+      name: "",
+      client_name: "",
+      location: "",
+      contract_type: "precios_unitarios",
+      contract_amount: 0,
+      status: "draft",
+      start_date: "",
+    },
   });
 
   const canCreate = roles.includes("admin") || roles.includes("resident");
@@ -321,10 +330,15 @@ export function ProjectsPage() {
   const createProject = form.handleSubmit(async (values) => {
     if (!user) return;
     const payload = {
-      ...values,
+      code: values.code,
+      name: values.name,
+      client_name: values.client_name || null,
+      location: values.location || null,
+      contract_type: values.contract_type,
+      contract_amount: values.contract_amount,
+      status: values.status,
       created_by: user.id,
       progress_percent: 0,
-      status: "draft" as const,
       start_date: values.start_date || null,
     };
 
@@ -334,30 +348,138 @@ export function ProjectsPage() {
       return;
     }
 
-    await supabase.from("project_members").insert({ project_id: data.id, user_id: user.id, role: roles.includes("resident") ? "resident" : "admin" });
-    form.reset({ contract_type: "precios_unitarios", contract_amount: 0 });
+    await supabase.from("project_members").insert({
+      project_id: data.id,
+      user_id: user.id,
+      role: roles.includes("resident") ? "resident" : "admin",
+    });
+    form.reset({
+      code: "",
+      name: "",
+      client_name: "",
+      location: "",
+      contract_type: "precios_unitarios",
+      contract_amount: 0,
+      status: "draft",
+      start_date: "",
+    });
     setOpen(false);
     await refresh();
   });
+
+  const newProjectDialog = canCreate ? (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>Nuevo proyecto</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Crear proyecto</DialogTitle>
+          <DialogDescription>Define el contrato correctamente; no podrá cambiarse tras iniciar la obra.</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form className="space-y-4" onSubmit={createProject}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField control={form.control} name="code" render={({ field }) => (
+                <FormItem><FormLabel>Código *</FormLabel><FormControl><Input {...field} placeholder="P-2026-001" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="status" render={({ field }) => (
+                <FormItem><FormLabel>Estado *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {Object.entries(projectStatusLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select><FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="name" render={({ field }) => (
+              <FormItem><FormLabel>Nombre *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField control={form.control} name="client_name" render={({ field }) => (
+                <FormItem><FormLabel>Cliente</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="location" render={({ field }) => (
+                <FormItem><FormLabel>Ubicación *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Distrito, provincia, región" /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField control={form.control} name="contract_type" render={({ field }) => (
+                <FormItem><FormLabel>Tipo de contrato *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Selecciona el tipo" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="precios_unitarios">Precios unitarios</SelectItem>
+                      <SelectItem value="suma_alzada">Suma alzada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>Obligatorio. No podrá modificarse luego del inicio.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="contract_amount" render={({ field }) => (
+                <FormItem><FormLabel>Monto contractual</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="start_date" render={({ field }) => (
+              <FormItem><FormLabel>Fecha de inicio</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+            )} />
+            {form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}
+            <DialogFooter>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Guardando…" : "Guardar proyecto"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  ) : null;
 
   return (
     <AuthGuard>
       <PageLayout
         title="Proyectos"
         description="Registro maestro de obras, tipo de contrato, cliente y estado contractual."
-        actions={canCreate ? <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button>Nuevo proyecto</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Crear proyecto</DialogTitle><DialogDescription>Define el contrato correctamente; no podrá cambiarse tras iniciar la obra.</DialogDescription></DialogHeader><Form {...form}><form className="space-y-4" onSubmit={createProject}><FormField control={form.control} name="code" render={({ field }) => <FormItem><FormLabel>Código</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} /><FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Nombre</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} /><div className="grid gap-4 md:grid-cols-2"><FormField control={form.control} name="client_name" render={({ field }) => <FormItem><FormLabel>Cliente</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl></FormItem>} /><FormField control={form.control} name="location" render={({ field }) => <FormItem><FormLabel>Ubicación</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl></FormItem>} /></div><div className="grid gap-4 md:grid-cols-2"><FormField control={form.control} name="contract_type" render={({ field }) => <FormItem><FormLabel>Tipo de contrato</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="precios_unitarios">Precios unitarios</SelectItem><SelectItem value="suma_alzada">Suma alzada</SelectItem></SelectContent></Select><FormMessage /></FormItem>} /><FormField control={form.control} name="contract_amount" render={({ field }) => <FormItem><FormLabel>Monto contractual</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>} /></div><FormField control={form.control} name="start_date" render={({ field }) => <FormItem><FormLabel>Fecha de inicio</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl></FormItem>} />{form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}<DialogFooter><Button type="submit">Guardar proyecto</Button></DialogFooter></form></Form></DialogContent></Dialog> : null}
+        actions={newProjectDialog}
       >
-        <SectionTable
-          headers={["Código", "Proyecto", "Cliente", "Contrato", "Monto", "Estado"]}
-          rows={projects.map((project) => [
-            project.code,
-            project.name,
-            project.client_name || "—",
-            contractTypeLabels[project.contract_type],
-            formatCurrency(Number(project.contract_amount), project.currency_code),
-            <Badge key={project.id} variant="outline">{projectStatusLabels[project.status]}</Badge>,
-          ])}
-        />
+        {!canCreate ? (
+          <Card className="border-dashed">
+            <CardHeader>
+              <CardTitle className="text-base">No puedes crear proyectos</CardTitle>
+              <CardDescription>
+                Solo los usuarios con rol <strong>Residente de obra</strong> o <strong>Administrador</strong> pueden registrar nuevos proyectos. Pide al administrador que te asigne el rol "Residente de obra" desde Usuarios y roles.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
+        {projects.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Aún no hay proyectos registrados</CardTitle>
+              <CardDescription>
+                {canCreate ? "Usa el botón \"Nuevo proyecto\" para registrar la primera obra." : "Cuando el residente registre proyectos, aparecerán aquí."}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <SectionTable
+            headers={["Código", "Proyecto", "Cliente", "Ubicación", "Contrato", "Monto", "Estado"]}
+            rows={projects.map((project) => [
+              project.code,
+              project.name,
+              project.client_name || "—",
+              project.location || "—",
+              contractTypeLabels[project.contract_type],
+              formatCurrency(Number(project.contract_amount), project.currency_code),
+              <Badge key={project.id} variant="outline">{projectStatusLabels[project.status]}</Badge>,
+            ])}
+          />
+        )}
       </PageLayout>
     </AuthGuard>
   );
