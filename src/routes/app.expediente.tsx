@@ -66,6 +66,7 @@ function ExpedientePage() {
   const [deductions, setDeductions] = useState<DeductionLine[]>([]);
   const [generating, setGenerating] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   const generateFn = useServerFn(generateExpediente);
 
@@ -234,17 +235,47 @@ function ExpedientePage() {
       toast.error("Selecciona un proyecto y un período antes de generar.");
       return;
     }
+
     setGenerating(true);
+    setGenerationError(null);
     const tid = toast.loading("Generando expediente PDF...");
+
     try {
-      const res = await generateFn({ data: { projectId, periodId } });
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Tu sesión expiró. Vuelve a iniciar sesión para generar el expediente.");
+      }
+
+      const res = await generateFn({ data: { projectId, periodId, accessToken: session.access_token } });
+
+      if (!res?.ok) {
+        throw new Error(res?.error || "Error en server function al generar el expediente.");
+      }
+
+      if (!res.signedUrl) {
+        throw new Error("El expediente se generó, pero no se recibió un enlace de descarga.");
+      }
+
       toast.dismiss(tid);
       setLastUrl(res.signedUrl);
       toast.success("Expediente generado correctamente");
-      if (res.signedUrl) window.open(res.signedUrl, "_blank");
+
+      const link = document.createElement("a");
+      link.href = res.signedUrl;
+      link.target = "_blank";
+      link.rel = "noreferrer noopener";
+      link.download = res.fileName || "expediente.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (e: any) {
       toast.dismiss(tid);
       const msg = e?.message ?? "Error desconocido al generar el PDF";
+      console.error("[Expediente] generatePdf failed", e);
+      setGenerationError(msg);
       toast.error(msg, { duration: 12000, style: { whiteSpace: "pre-line" } });
     } finally {
       setGenerating(false);
@@ -518,7 +549,9 @@ function ExpedientePage() {
           <Card>
             <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
-                {isFichaTecnicaIncomplete(project) ? (
+                {generationError ? (
+                  <span className="whitespace-pre-line text-destructive">{generationError}</span>
+                ) : isFichaTecnicaIncomplete(project) ? (
                   <span className="text-destructive">
                     La ficha técnica del proyecto está incompleta. Complétala antes de generar el expediente.
                   </span>
@@ -539,7 +572,7 @@ function ExpedientePage() {
                 )}
                 <Button onClick={generatePdf} disabled={generating || isFichaTecnicaIncomplete(project)}>
                   {generating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}
-                  Generar Expediente PDF
+                  {generating ? "Generando expediente..." : "Generar Expediente PDF"}
                 </Button>
               </div>
             </CardContent>
