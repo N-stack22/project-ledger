@@ -48,8 +48,11 @@ const projectSchema = z.object({
   name: z.string().trim().min(3).max(160),
   client_name: z.string().trim().max(120).optional(),
   location: z.string().trim().max(160).optional(),
-  contract_type: z.enum(["precios_unitarios", "suma_alzada"]),
+  contract_type: z.enum(["precios_unitarios", "suma_alzada"], {
+    errorMap: () => ({ message: "Selecciona un tipo de contrato válido." }),
+  }),
   contract_amount: z.coerce.number().min(0),
+  status: z.enum(["draft", "active", "closing", "closed"]).default("draft"),
   start_date: z.string().optional(),
 });
 
