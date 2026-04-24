@@ -174,6 +174,60 @@ export type Database = {
           },
         ]
       }
+      expediente_documents: {
+        Row: {
+          file_name: string | null
+          file_path: string | null
+          generated_at: string
+          generated_by: string
+          id: string
+          net_amount: number | null
+          period_id: string
+          project_id: string
+          total_deductions: number | null
+          total_valued: number | null
+        }
+        Insert: {
+          file_name?: string | null
+          file_path?: string | null
+          generated_at?: string
+          generated_by: string
+          id?: string
+          net_amount?: number | null
+          period_id: string
+          project_id: string
+          total_deductions?: number | null
+          total_valued?: number | null
+        }
+        Update: {
+          file_name?: string | null
+          file_path?: string | null
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          net_amount?: number | null
+          period_id?: string
+          project_id?: string
+          total_deductions?: number | null
+          total_valued?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expediente_documents_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "valuation_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidations: {
         Row: {
           approved_at: string | null
@@ -352,6 +406,91 @@ export type Database = {
           },
         ]
       }
+      metrado_lines: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          formula: string | null
+          group_label: string | null
+          height: number | null
+          id: string
+          item_id: string
+          length: number | null
+          location_ref: string | null
+          num_elements: number | null
+          observation: string | null
+          partial: number
+          period_id: string
+          project_id: string
+          sort_order: number
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          formula?: string | null
+          group_label?: string | null
+          height?: number | null
+          id?: string
+          item_id: string
+          length?: number | null
+          location_ref?: string | null
+          num_elements?: number | null
+          observation?: string | null
+          partial?: number
+          period_id: string
+          project_id: string
+          sort_order?: number
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          formula?: string | null
+          group_label?: string | null
+          height?: number | null
+          id?: string
+          item_id?: string
+          length?: number | null
+          location_ref?: string | null
+          num_elements?: number | null
+          observation?: string | null
+          partial?: number
+          period_id?: string
+          project_id?: string
+          sort_order?: number
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metrado_lines_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "budget_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metrado_lines_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "valuation_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metrado_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -423,63 +562,135 @@ export type Database = {
       projects: {
         Row: {
           actual_end_date: string | null
+          additionals_amount: number | null
           client_name: string | null
           code: string
           contract_amount: number
           contract_type: Database["public"]["Enums"]["contract_type"]
+          contractor_name: string | null
           created_at: string
           created_by: string | null
           currency_code: string
+          deductives_amount: number | null
+          department: string | null
           description: string | null
+          direct_cost: number | null
+          district: string | null
+          entity_name: string | null
+          executing_unit: string | null
+          execution_contract: string | null
+          execution_modality: string | null
+          execution_term_days: number | null
+          expediente_amount: number | null
+          extensions_days: number | null
           id: string
+          igv_amount: number | null
           location: string | null
           name: string
+          new_completion_date: string | null
+          overhead_cost: number | null
+          planned_completion_date: string | null
           planned_end_date: string | null
           progress_percent: number
+          province: string | null
+          resident_name: string | null
+          site_handover_date: string | null
           start_date: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["project_status"]
+          subgerente_name: string | null
+          supervision_contract: string | null
+          supervisor_name: string | null
           updated_at: string
+          utility_amount: number | null
         }
         Insert: {
           actual_end_date?: string | null
+          additionals_amount?: number | null
           client_name?: string | null
           code: string
           contract_amount?: number
           contract_type: Database["public"]["Enums"]["contract_type"]
+          contractor_name?: string | null
           created_at?: string
           created_by?: string | null
           currency_code?: string
+          deductives_amount?: number | null
+          department?: string | null
           description?: string | null
+          direct_cost?: number | null
+          district?: string | null
+          entity_name?: string | null
+          executing_unit?: string | null
+          execution_contract?: string | null
+          execution_modality?: string | null
+          execution_term_days?: number | null
+          expediente_amount?: number | null
+          extensions_days?: number | null
           id?: string
+          igv_amount?: number | null
           location?: string | null
           name: string
+          new_completion_date?: string | null
+          overhead_cost?: number | null
+          planned_completion_date?: string | null
           planned_end_date?: string | null
           progress_percent?: number
+          province?: string | null
+          resident_name?: string | null
+          site_handover_date?: string | null
           start_date?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          subgerente_name?: string | null
+          supervision_contract?: string | null
+          supervisor_name?: string | null
           updated_at?: string
+          utility_amount?: number | null
         }
         Update: {
           actual_end_date?: string | null
+          additionals_amount?: number | null
           client_name?: string | null
           code?: string
           contract_amount?: number
           contract_type?: Database["public"]["Enums"]["contract_type"]
+          contractor_name?: string | null
           created_at?: string
           created_by?: string | null
           currency_code?: string
+          deductives_amount?: number | null
+          department?: string | null
           description?: string | null
+          direct_cost?: number | null
+          district?: string | null
+          entity_name?: string | null
+          executing_unit?: string | null
+          execution_contract?: string | null
+          execution_modality?: string | null
+          execution_term_days?: number | null
+          expediente_amount?: number | null
+          extensions_days?: number | null
           id?: string
+          igv_amount?: number | null
           location?: string | null
           name?: string
+          new_completion_date?: string | null
+          overhead_cost?: number | null
+          planned_completion_date?: string | null
           planned_end_date?: string | null
           progress_percent?: number
+          province?: string | null
+          resident_name?: string | null
+          site_handover_date?: string | null
           start_date?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          subgerente_name?: string | null
+          supervision_contract?: string | null
+          supervisor_name?: string | null
           updated_at?: string
+          utility_amount?: number | null
         }
         Relationships: []
       }
@@ -503,6 +714,60 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      valuation_deductions: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          deduction_type: Database["public"]["Enums"]["deduction_type"]
+          description: string | null
+          id: string
+          percentage: number | null
+          period_id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          created_by: string
+          deduction_type: Database["public"]["Enums"]["deduction_type"]
+          description?: string | null
+          id?: string
+          percentage?: number | null
+          period_id: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          deduction_type?: Database["public"]["Enums"]["deduction_type"]
+          description?: string | null
+          id?: string
+          percentage?: number | null
+          period_id?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "valuation_deductions_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "valuation_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "valuation_deductions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       valuation_lines: {
         Row: {
@@ -554,6 +819,68 @@ export type Database = {
             columns: ["valuation_id"]
             isOneToOne: false
             referencedRelation: "valuations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      valuation_periods: {
+        Row: {
+          carta_presentacion: string | null
+          conclusiones: string | null
+          created_at: string
+          created_by: string
+          date_from: string
+          date_to: string
+          generalidades: string | null
+          id: string
+          metas: string | null
+          ocurrencias: string | null
+          period_number: number
+          project_id: string
+          resumen_ejecutivo: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          carta_presentacion?: string | null
+          conclusiones?: string | null
+          created_at?: string
+          created_by: string
+          date_from: string
+          date_to: string
+          generalidades?: string | null
+          id?: string
+          metas?: string | null
+          ocurrencias?: string | null
+          period_number: number
+          project_id: string
+          resumen_ejecutivo?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          carta_presentacion?: string | null
+          conclusiones?: string | null
+          created_at?: string
+          created_by?: string
+          date_from?: string
+          date_to?: string
+          generalidades?: string | null
+          id?: string
+          metas?: string | null
+          ocurrencias?: string | null
+          period_number?: number
+          project_id?: string
+          resumen_ejecutivo?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "valuation_periods_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -727,6 +1054,14 @@ export type Database = {
         | "supervisor"
         | "legal_representative"
       contract_type: "precios_unitarios" | "suma_alzada"
+      deduction_type:
+        | "adelanto_directo"
+        | "adelanto_materiales"
+        | "fondo_garantia"
+        | "reintegro"
+        | "multa"
+        | "penalidad"
+        | "otra"
       document_status: "draft" | "in_review" | "approved" | "rejected"
       entry_status: "draft" | "submitted" | "validated" | "rejected"
       import_status:
@@ -883,6 +1218,15 @@ export const Constants = {
         "legal_representative",
       ],
       contract_type: ["precios_unitarios", "suma_alzada"],
+      deduction_type: [
+        "adelanto_directo",
+        "adelanto_materiales",
+        "fondo_garantia",
+        "reintegro",
+        "multa",
+        "penalidad",
+        "otra",
+      ],
       document_status: ["draft", "in_review", "approved", "rejected"],
       entry_status: ["draft", "submitted", "validated", "rejected"],
       import_status: [
