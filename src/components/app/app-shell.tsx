@@ -45,6 +45,7 @@ const menuGroups = [
       { title: "Dashboard", to: "/app/dashboard", icon: Gauge },
       { title: "Proyectos", to: "/app/projects", icon: FolderKanban },
       { title: "Presupuestos", to: "/app/budgets", icon: FileSpreadsheet },
+      { title: "Expediente Mensual", to: "/app/expediente", icon: FileStack },
       { title: "Metrados", to: "/app/metrados", icon: HardHat },
       { title: "Memoria valorizada", to: "/app/memorias", icon: FileText },
       { title: "Valorizaciones", to: "/app/valuations", icon: WalletCards },
