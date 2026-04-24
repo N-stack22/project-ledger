@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createElement as h, Fragment } from "react";
-import { Document, Page, Text, View, StyleSheet, pdf } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
@@ -78,7 +78,39 @@ export const generateExpediente = createServerFn({ method: "POST" })
       supabase.from("valuation_deductions").select("*").eq("period_id", data.periodId),
     ]);
 
-    if (!project || !period) throw new Error("Proyecto o período no encontrado");
+    if (!project) throw new Error("Proyecto no encontrado o sin permisos para acceder.");
+    if (!period) throw new Error("Período de valorización no encontrado.");
+
+    // Validación detallada
+    const missing: string[] = [];
+    const requiredFichaFields: Array<[keyof typeof project, string]> = [
+      ["entity_name", "Entidad"],
+      ["contractor_name", "Contratista"],
+      ["supervisor_name", "Supervisor"],
+      ["resident_name", "Residente de obra"],
+      ["execution_modality", "Modalidad de ejecución"],
+      ["location", "Ubicación"],
+      ["execution_contract", "Contrato de ejecución"],
+      ["supervision_contract", "Contrato de supervisión"],
+      ["start_date", "Fecha de inicio"],
+      ["execution_term_days", "Plazo de ejecución (días)"],
+    ];
+    for (const [k, label] of requiredFichaFields) {
+      const v = (project as any)[k];
+      if (v == null || v === "" || v === 0) missing.push(`Ficha técnica → ${label}`);
+    }
+    if (!project.contract_amount || Number(project.contract_amount) <= 0) {
+      missing.push("Ficha técnica → Monto contractual");
+    }
+    if (!items || items.length === 0) {
+      missing.push("Presupuesto → No hay partidas registradas para este proyecto");
+    }
+    if (!currentLines || currentLines.length === 0) {
+      missing.push("Metrados → No hay metrados detallados registrados para este período");
+    }
+    if (missing.length > 0) {
+      throw new Error("Falta información para generar el expediente:\n• " + missing.join("\n• "));
+    }
 
     // Líneas previas: de períodos anteriores a este
     const prevIds = (previousPeriods ?? []).filter((p: any) => p.id !== data.periodId).map((p: any) => p.id);
@@ -361,9 +393,8 @@ export const generateExpediente = createServerFn({ method: "POST" })
       ]),
     ]);
 
-    const blob = await pdf(doc as any).toBlob();
-    const arrayBuffer = await blob.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    const buffer = await renderToBuffer(doc as any);
+    const bytes = new Uint8Array(buffer);
 
     const fileName = `expediente-${project.code}-val${String(period.period_number).padStart(2, "0")}-${Date.now()}.pdf`;
     const filePath = `${project.id}/${fileName}`;

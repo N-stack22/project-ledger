@@ -230,15 +230,22 @@ function ExpedientePage() {
   }
 
   async function generatePdf() {
-    if (!projectId || !periodId) return;
+    if (!projectId || !periodId) {
+      toast.error("Selecciona un proyecto y un período antes de generar.");
+      return;
+    }
     setGenerating(true);
+    const tid = toast.loading("Generando expediente PDF...");
     try {
       const res = await generateFn({ data: { projectId, periodId } });
+      toast.dismiss(tid);
       setLastUrl(res.signedUrl);
-      toast.success("Expediente generado");
+      toast.success("Expediente generado correctamente");
       if (res.signedUrl) window.open(res.signedUrl, "_blank");
     } catch (e: any) {
-      toast.error(e.message ?? "Error al generar PDF");
+      toast.dismiss(tid);
+      const msg = e?.message ?? "Error desconocido al generar el PDF";
+      toast.error(msg, { duration: 12000, style: { whiteSpace: "pre-line" } });
     } finally {
       setGenerating(false);
     }
