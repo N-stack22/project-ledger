@@ -69,7 +69,7 @@ const fichaTecnicaSchema = z.object({
   start_date: z.string().optional(),
   execution_term_days: z.coerce.number().int().min(0).optional(),
   planned_end_date: z.string().optional(),
-  status: z.enum(["draft", "active", "closing", "closed"]),
+  status: z.enum(["draft", "active", "closing", "closed", "archived"]),
 });
 
 const metradoSchema = z.object({
