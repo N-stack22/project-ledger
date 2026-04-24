@@ -220,7 +220,7 @@ function ExpedientePage() {
 
   async function updateDeduction(id: string, patch: Partial<DeductionLine>) {
     setDeductions((ds) => ds.map((d) => (d.id === id ? { ...d, ...patch } : d)));
-    await supabase.from("valuation_deductions").update(patch).eq("id", id);
+    await supabase.from("valuation_deductions").update(patch as any).eq("id", id);
   }
 
   async function removeDeduction(id: string) {
