@@ -138,8 +138,69 @@ function ExpedientePage() {
   const currency = project?.currency_code ?? "PEN";
 
   // -------- Acciones --------
-  async function createPeriod(form: { number: number; from: string; to: string }) {
-    if (!projectId || !user) return;
+  async function createPeriod(form: { number: number; from: string; to: string }): Promise<boolean> {
+    if (!projectId || !user) return false;
+    if (items.length === 0) {
+      toast.error("Primero debes cargar presupuesto y partidas del proyecto.");
+      return false;
+    }
+
+    // Validaciones de fechas
+    const from = new Date(form.from);
+    const to = new Date(form.to);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      toast.error("Fechas inválidas.");
+      return false;
+    }
+    if (to < from) {
+      toast.error("La fecha 'Hasta' debe ser mayor o igual a 'Desde'.");
+      return false;
+    }
+
+    // Rango lógico del proyecto
+    if (project?.start_date) {
+      const ps = new Date(project.start_date);
+      if (from < ps) {
+        toast.error(`'Desde' no puede ser anterior al inicio del proyecto (${project.start_date}).`);
+        return false;
+      }
+    }
+    const projectEnd = project?.actual_end_date ?? project?.planned_end_date ?? project?.planned_completion_date ?? null;
+    if (projectEnd) {
+      const pe = new Date(projectEnd);
+      // permitir 30 días de tolerancia más allá del fin planificado
+      const tolerance = new Date(pe.getTime() + 30 * 86_400_000);
+      if (to > tolerance) {
+        toast.error(`'Hasta' excede el plazo del proyecto (fin: ${projectEnd}).`);
+        return false;
+      }
+    }
+
+    // Continuidad con valorización anterior
+    const prev = periods
+      .slice()
+      .sort((a, b) => a.period_number - b.period_number)
+      .filter((p) => p.period_number < form.number)
+      .pop();
+    if (prev) {
+      const prevTo = new Date(prev.date_to);
+      if (from <= prevTo) {
+        toast.error(`'Desde' debe ser mayor que el fin de la valorización N° ${prev.period_number} (${prev.date_to}).`);
+        return false;
+      }
+    }
+
+    // Sin traslape con períodos existentes
+    const overlap = periods.find((p) => {
+      const a = new Date(p.date_from);
+      const b = new Date(p.date_to);
+      return from <= b && to >= a;
+    });
+    if (overlap) {
+      toast.error(`El período se solapa con la valorización N° ${overlap.period_number} (${overlap.date_from} → ${overlap.date_to}).`);
+      return false;
+    }
+
     const { data, error } = await supabase
       .from("valuation_periods")
       .insert({
@@ -153,11 +214,12 @@ function ExpedientePage() {
       .single();
     if (error) {
       toast.error(error.message);
-      return;
+      return false;
     }
     setPeriods((p) => [...p, data as Period]);
     setPeriodId(data!.id);
     toast.success("Período creado");
+    return true;
   }
 
   async function addLine(itemId: string) {
