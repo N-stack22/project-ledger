@@ -56,21 +56,46 @@ const projectSchema = z.object({
   start_date: z.string().optional(),
 });
 
-const fichaTecnicaSchema = z.object({
-  entity_name: z.string().trim().max(180).optional(),
-  contractor_name: z.string().trim().max(180).optional(),
-  supervisor_name: z.string().trim().max(180).optional(),
-  resident_name: z.string().trim().max(180).optional(),
-  execution_modality: z.string().trim().max(120).optional(),
-  location: z.string().trim().max(180).optional(),
-  execution_contract: z.string().trim().max(180).optional(),
-  supervision_contract: z.string().trim().max(180).optional(),
-  contract_amount: z.coerce.number().min(0),
-  start_date: z.string().optional(),
-  execution_term_days: z.coerce.number().int().min(0).optional(),
-  planned_end_date: z.string().optional(),
-  status: z.enum(["draft", "active", "closing", "closed", "archived"]),
-});
+const fichaTecnicaSchema = z
+  .object({
+    entity_name: z.string().trim().max(180).optional(),
+    contractor_name: z.string().trim().max(180).optional(),
+    supervisor_name: z.string().trim().max(180).optional(),
+    resident_name: z.string().trim().max(180).optional(),
+    execution_modality: z.string().trim().max(120).optional(),
+    location: z.string().trim().max(180).optional(),
+    execution_contract: z.string().trim().max(180).optional(),
+    supervision_contract: z.string().trim().max(180).optional(),
+    contract_amount: z.coerce.number().min(0),
+    start_date: z.string().optional(),
+    execution_term_days: z.coerce.number().int().min(0).optional(),
+    planned_end_date: z.string().optional(),
+    status: z.enum(["draft", "active", "closing", "closed", "archived"]),
+  })
+  .superRefine((values, ctx) => {
+    const { start_date, planned_end_date, execution_term_days } = values;
+    if (start_date && planned_end_date) {
+      const start = new Date(start_date);
+      const end = new Date(planned_end_date);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+      if (end < start) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["planned_end_date"],
+          message: "La fecha de término debe ser posterior a la fecha de inicio.",
+        });
+        return;
+      }
+      const computed = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+      if (execution_term_days && execution_term_days > 0 && execution_term_days !== computed) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["execution_term_days"],
+          message: `El plazo no coincide con las fechas (${computed} días calendario entre inicio y término).`,
+        });
+      }
+    }
+  });
 
 const metradoSchema = z.object({
   project_id: z.string().uuid(),
