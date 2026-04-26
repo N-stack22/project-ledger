@@ -692,20 +692,113 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
   );
 }
 
-function NewPeriodForm({ defaultNumber, onCreate }: { defaultNumber: number; onCreate: (f: { number: number; from: string; to: string }) => void }) {
+function NewPeriodForm({
+  defaultNumber,
+  previousPeriod,
+  projectStart,
+  projectEnd,
+  onCreate,
+}: {
+  defaultNumber: number;
+  previousPeriod: Period | null;
+  projectStart: string | null;
+  projectEnd: string | null;
+  onCreate: (f: { number: number; from: string; to: string }) => Promise<boolean>;
+}) {
   const [number, setNumber] = useState(defaultNumber);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  useEffect(() => setNumber(defaultNumber), [defaultNumber]);
+  const [touched, setTouched] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Autocompletar en función de valorización anterior
+  useEffect(() => {
+    setNumber(defaultNumber);
+    if (touched) return;
+    let suggestedFrom = "";
+    if (previousPeriod?.date_to) {
+      const d = new Date(previousPeriod.date_to);
+      d.setDate(d.getDate() + 1);
+      suggestedFrom = d.toISOString().slice(0, 10);
+    } else if (projectStart) {
+      suggestedFrom = projectStart;
+    }
+    if (suggestedFrom) {
+      setFrom(suggestedFrom);
+      // sugerir fin de mes natural a partir de "from"
+      const f = new Date(suggestedFrom);
+      const endOfMonth = new Date(f.getFullYear(), f.getMonth() + 1, 0);
+      setTo(endOfMonth.toISOString().slice(0, 10));
+    }
+  }, [defaultNumber, previousPeriod, projectStart, touched]);
+
+  // Validación inline
+  const validation = (() => {
+    if (!from || !to) return { ok: false, msg: "Completa ambas fechas." };
+    const f = new Date(from);
+    const t = new Date(to);
+    if (t < f) return { ok: false, msg: "'Hasta' debe ser ≥ 'Desde'." };
+    if (previousPeriod) {
+      const pt = new Date(previousPeriod.date_to);
+      if (f <= pt) return { ok: false, msg: `'Desde' debe ser posterior al ${previousPeriod.date_to}.` };
+    }
+    if (projectStart && f < new Date(projectStart)) {
+      return { ok: false, msg: `'Desde' no puede ser anterior al inicio del proyecto (${projectStart}).` };
+    }
+    if (projectEnd) {
+      const pe = new Date(projectEnd);
+      const tolerance = new Date(pe.getTime() + 30 * 86_400_000);
+      if (t > tolerance) return { ok: false, msg: `'Hasta' excede el plazo del proyecto (fin: ${projectEnd}).` };
+    }
+    return { ok: true as const, msg: "" };
+  })();
+
   return (
     <div className="rounded-md border bg-muted/30 p-3">
-      <p className="mb-2 text-sm font-semibold">Nueva valorización</p>
+      <p className="mb-2 text-sm font-semibold">
+        {previousPeriod ? "Nueva valorización (continuación)" : "Primera valorización del proyecto"}
+      </p>
+      {previousPeriod && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          La valorización anterior (N° {previousPeriod.period_number}) terminó el {previousPeriod.date_to}.
+          Se sugiere iniciar al día siguiente.
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div><Label className="text-xs">N°</Label><Input type="number" value={number} onChange={(e) => setNumber(Number(e.target.value))} /></div>
-        <div><Label className="text-xs">Desde</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-        <div><Label className="text-xs">Hasta</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-        <div className="flex items-end"><Button className="w-full" disabled={!from || !to} onClick={() => onCreate({ number, from, to })}><Plus className="mr-1 h-4 w-4" />Crear</Button></div>
+        <div>
+          <Label className="text-xs">N°</Label>
+          <Input type="number" value={number} onChange={(e) => setNumber(Number(e.target.value))} />
+        </div>
+        <div>
+          <Label className="text-xs">Desde</Label>
+          <Input type="date" value={from} onChange={(e) => { setTouched(true); setFrom(e.target.value); }} />
+        </div>
+        <div>
+          <Label className="text-xs">Hasta</Label>
+          <Input type="date" value={to} onChange={(e) => { setTouched(true); setTo(e.target.value); }} />
+        </div>
+        <div className="flex items-end">
+          <Button
+            className="w-full"
+            disabled={!validation.ok || submitting}
+            onClick={async () => {
+              setSubmitting(true);
+              const ok = await onCreate({ number, from, to });
+              setSubmitting(false);
+              if (ok) {
+                setTouched(false);
+                setFrom("");
+                setTo("");
+              }
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" />Crear
+          </Button>
+        </div>
       </div>
+      {!validation.ok && (from || to) && (
+        <p className="mt-2 text-xs text-destructive">{validation.msg}</p>
+      )}
     </div>
   );
 }
