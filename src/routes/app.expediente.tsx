@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageLayout } from "@/components/app/page-layout";
