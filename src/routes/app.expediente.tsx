@@ -345,8 +345,8 @@ function ExpedientePage() {
 
   return (
     <PageLayout
-      title="Expediente Mensual"
-      description="Asistente para generar el expediente mensual de supervisión / valorización."
+      title="Expediente Mensual de Supervisión"
+      description="Asistente del expediente: ficha técnica, memoria valorizada, metrados, valorización y PDF."
     >
       {/* Stepper */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
