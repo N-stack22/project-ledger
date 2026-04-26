@@ -416,6 +416,40 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
     },
   });
 
+  // Sync execution_term_days <-> start_date / planned_end_date
+  // - Si cambian ambas fechas, recalcula el plazo (días calendario inclusivos).
+  // - Si el usuario edita manualmente el plazo y existe start_date, recalcula la fecha de término.
+  const startDate = form.watch("start_date");
+  const endDate = form.watch("planned_end_date");
+  const termDays = form.watch("execution_term_days");
+  const lastEditedRef = useRef<"dates" | "term" | null>(null);
+
+  useEffect(() => {
+    if (lastEditedRef.current === "term") return;
+    if (!startDate || !endDate) return;
+    const s = new Date(startDate);
+    const e = new Date(endDate);
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || e < s) return;
+    const computed = Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1;
+    if (computed !== Number(termDays || 0)) {
+      form.setValue("execution_term_days", computed, { shouldValidate: true, shouldDirty: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    if (lastEditedRef.current !== "term") return;
+    if (!startDate || !termDays || Number(termDays) <= 0) return;
+    const s = new Date(startDate);
+    if (Number.isNaN(s.getTime())) return;
+    const e = new Date(s.getTime() + (Number(termDays) - 1) * 86_400_000);
+    const iso = e.toISOString().slice(0, 10);
+    if (iso !== endDate) {
+      form.setValue("planned_end_date", iso, { shouldValidate: true, shouldDirty: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termDays, startDate]);
+
   const submit = form.handleSubmit(async (values) => {
     const payload = {
       entity_name: values.entity_name || null,
