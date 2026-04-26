@@ -522,13 +522,20 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
                 <FormItem><FormLabel>Monto contractual *</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="start_date" render={({ field }) => (
-                <FormItem><FormLabel>Fecha de inicio *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Fecha de inicio *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} onChange={(e) => { lastEditedRef.current = "dates"; field.onChange(e); }} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="execution_term_days" render={({ field }) => (
-                <FormItem><FormLabel>Plazo de ejecución (días) *</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Plazo de ejecución (días) *</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} {...field} value={field.value ?? 0} onChange={(e) => { lastEditedRef.current = "term"; field.onChange(e); }} />
+                  </FormControl>
+                  <FormDescription>Se calcula automáticamente desde las fechas de inicio y término (días calendario, inclusivos).</FormDescription>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="planned_end_date" render={({ field }) => (
-                <FormItem><FormLabel>Fecha de término *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Fecha de término *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} onChange={(e) => { lastEditedRef.current = "dates"; field.onChange(e); }} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="status" render={({ field }) => (
                 <FormItem><FormLabel>Estado del proyecto *</FormLabel>
