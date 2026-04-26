@@ -826,21 +826,50 @@ export function BudgetsPage() {
                 const detected = await detectBudgetWorkbook(selected);
                 setPreview(detected);
               }} />
-              {preview ? <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">{preview.warnings.length ? preview.warnings.join(" ") : `Se detectaron ${preview.rows.length} partidas listas para importar.`}</div> : null}
+              {preview ? (
+                <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+                  <p className="font-medium text-foreground">Se detectaron {preview.rows.length} partidas en el archivo.</p>
+                  {preview.warnings.length ? <p className="mt-1 text-xs text-muted-foreground">{preview.warnings.join(" ")}</p> : <p className="mt-1 text-xs text-muted-foreground">Revisa la vista previa completa antes de confirmar la importación.</p>}
+                </div>
+              ) : null}
               {message ? <p className="text-sm text-primary">{message}</p> : null}
               <Button onClick={() => void uploadBudget()} disabled={!preview || !selectedProjectId}>Importar presupuesto</Button>
             </CardContent>
           </Card>
+          {preview ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Vista previa de importación</CardTitle>
+                <CardDescription>
+                  Mostrando las {preview.rows.length} partidas detectadas. Desplázate dentro de la tabla para revisarlas todas antes de importar.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollableImportTable
+                  headers={["Código", "Descripción", "Unidad", "Metrado base", "P.U.", "Parcial"]}
+                  rows={preview.rows.map((item) => [
+                    item.item_code || "—",
+                    item.description,
+                    item.unit,
+                    formatNumber(Number(item.base_quantity), 4),
+                    formatCurrency(Number(item.unit_price)),
+                    formatCurrency(Number(item.partial_amount)),
+                  ])}
+                />
+                <p className="mt-2 text-xs text-muted-foreground">Total: {preview.rows.length} filas · scroll vertical activo</p>
+              </CardContent>
+            </Card>
+          ) : null}
           <Card>
             <CardHeader>
               <CardTitle>Partidas registradas</CardTitle>
-              <CardDescription>{currentItems.length} partidas cargadas para el proyecto seleccionado.</CardDescription>
+              <CardDescription>{currentItems.length} partidas cargadas para el proyecto seleccionado{currentItems.length > 12 ? " (mostrando las primeras 12)" : ""}.</CardDescription>
             </CardHeader>
             <CardContent>
               <SectionTable
                 headers={["Código", "Descripción", "Unidad", "Metrado base", "P.U.", "Parcial"]}
-                rows={(preview?.rows ?? currentItems).slice(0, 12).map((item) => [
-                  "item_code" in item ? item.item_code || "—" : item.item_code || "—",
+                rows={currentItems.slice(0, 12).map((item) => [
+                  item.item_code || "—",
                   item.description,
                   item.unit,
                   formatNumber(Number(item.base_quantity), 4),
