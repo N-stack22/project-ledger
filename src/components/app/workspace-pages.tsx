@@ -158,6 +158,37 @@ function SectionTable({ headers, rows }: { headers: string[]; rows: React.ReactN
   );
 }
 
+function ScrollableImportTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="max-h-[480px] overflow-y-auto overflow-x-auto">
+        <table className="w-full caption-bottom text-sm">
+          <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
+            <tr className="border-b border-border">
+              {headers.map((header) => (
+                <th key={header} className="h-10 px-3 text-left align-middle font-medium text-muted-foreground">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={headers.length} className="p-4 text-center text-muted-foreground">Sin filas detectadas.</td></tr>
+            ) : rows.map((row, index) => (
+              <tr key={index} className="border-b border-border/60 hover:bg-muted/40">
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="p-3 align-top">{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { signIn, signUp, isAuthenticated, loading } = useAuth();
