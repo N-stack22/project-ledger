@@ -439,18 +439,147 @@ function ExpedientePage() {
         </Card>
       )}
 
-      {/* Step 2: Hoja resumen + planillas detalladas */}
-      {step === 2 && period && (() => {
+      {/* Step 2: Memoria valorizada e informe técnico */}
+      {step === 2 && period && project && (() => {
+        const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
+        const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
+        const baseTotal = valTable.reduce((s, r) => s + Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0), 0);
+        const pctEjecutado = baseTotal > 0 ? (t.accum / baseTotal) * 100 : 0;
+        const projectLocation = [project.district, project.province, project.department].filter(Boolean).join(", ") || "—";
+        return (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Memoria valorizada e informe técnico — Valorización N° {String(period.period_number).padStart(2, "0")}</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Documento narrativo del período {period.date_from} → {period.date_to}. Aquí solo se incluye la hoja resumen consolidada; las planillas detalladas se editan en el paso siguiente.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Datos generales rápidos (solo lectura) */}
+                <div className="grid grid-cols-1 gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] uppercase text-muted-foreground">Proyecto</p>
+                    <p className="font-medium">{project.code} — {project.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-muted-foreground">Ubicación</p>
+                    <p className="font-medium">{projectLocation}</p>
+                  </div>
+                </div>
+
+                {/* Narrativa */}
+                <div>
+                  <Label>Generalidades</Label>
+                  <Textarea rows={3} defaultValue={period.generalidades ?? ""} onBlur={(e) => saveNarrative({ generalidades: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Metas del proyecto</Label>
+                  <Textarea rows={3} defaultValue={period.metas ?? ""} onBlur={(e) => saveNarrative({ metas: e.target.value })} />
+                </div>
+
+                {/* Avance físico */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-md border p-3">
+                    <p className="text-[11px] uppercase text-muted-foreground">Avance físico ejecutado (acumulado)</p>
+                    <p className="mt-1 text-xl font-semibold">{formatNum(pctEjecutado, 2)}%</p>
+                    <p className="text-xs text-muted-foreground">Calculado automáticamente: {formatMoney(t.accum, currency)} de {formatMoney(baseTotal, currency)}.</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-[11px] uppercase text-muted-foreground">Avance físico programado (acumulado)</p>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Ej. 35.50"
+                      defaultValue={period.resumen_ejecutivo ?? ""}
+                      onBlur={(e) => saveNarrative({ resumen_ejecutivo: e.target.value })}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">Ingresa el % programado según cronograma.</p>
+                  </div>
+                </div>
+
+                {/* Resumen y valorización a pagar */}
+                <div className="rounded-md border bg-muted/10 p-3">
+                  <p className="text-[11px] uppercase text-muted-foreground">Valorización a pagar (período actual, neto)</p>
+                  <p className="mt-1 text-xl font-semibold">{formatMoney(netAmount, currency)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Bruto del período: {formatMoney(t.current, currency)} − Deducciones: {formatMoney(totalDeductions, currency)}.
+                  </p>
+                </div>
+
+                <div>
+                  <Label>Ocurrencias y desarrollo de la obra</Label>
+                  <Textarea rows={4} defaultValue={period.ocurrencias ?? ""} onBlur={(e) => saveNarrative({ ocurrencias: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Conclusiones / observaciones del supervisor</Label>
+                  <Textarea rows={3} defaultValue={period.conclusiones ?? ""} onBlur={(e) => saveNarrative({ conclusiones: e.target.value })} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Hoja resumen consolidada de metrados (solo lectura, sin planillas) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Hoja resumen de metrados avanzados hasta la valorización</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Resumen consolidado de partidas ejecutadas. Para registrar o editar el detalle (referencias, dimensiones, fórmulas), usa el paso <strong>Metrados de partidas ejecutadas</strong>.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40">
+                        <TableHead className="w-[120px]">Partida</TableHead>
+                        <TableHead>Descripción</TableHead>
+                        <TableHead className="w-[80px]">Unidad</TableHead>
+                        <TableHead className="w-[120px] text-right">Total ejecutado</TableHead>
+                        <TableHead className="w-[140px] text-right">Importe</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {summaryRows.length === 0 && (
+                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                          Aún no hay partidas ejecutadas. Regístralas en el paso <strong>Metrados de partidas ejecutadas</strong>.
+                        </TableCell></TableRow>
+                      )}
+                      {summaryRows.map((r) => (
+                        <TableRow key={r.item.id}>
+                          <TableCell className="font-mono text-xs">{r.item.item_code}</TableCell>
+                          <TableCell>{r.item.description}</TableCell>
+                          <TableCell className="text-xs">{r.item.unit}</TableCell>
+                          <TableCell className="text-right font-mono">{formatNum(r.qtyCurrent, 2)}</TableCell>
+                          <TableCell className="text-right font-mono">{formatMoney(r.amountCurrent, currency)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {summaryRows.length > 0 && (
+                        <TableRow className="bg-muted/40 font-semibold">
+                          <TableCell colSpan={4} className="text-right">Subtotal del período</TableCell>
+                          <TableCell className="text-right font-mono">{formatMoney(summaryTotal, currency)}</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
+      {/* Step 3: Metrados de partidas ejecutadas (hoja resumen + planillas detalladas) */}
+      {step === 3 && period && (() => {
         const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
         const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
         return (
           <div className="space-y-4">
-            {/* A. Hoja resumen consolidada (vista principal) */}
+            {/* A. Hoja resumen consolidada */}
             <Card>
               <CardHeader>
-                <CardTitle>Partidas ejecutadas a la fecha de la valorización N° {period.period_number}</CardTitle>
+                <CardTitle>Hoja resumen de metrados — Valorización N° {period.period_number}</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Hoja resumen consolidada del período {period.date_from} → {period.date_to}. Los totales se calculan automáticamente desde las planillas detalladas.
+                  Consolidado del período {period.date_from} → {period.date_to}. Los totales se calculan automáticamente desde las planillas detalladas de abajo.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -462,7 +591,7 @@ function ExpedientePage() {
                         <TableHead>Descripción</TableHead>
                         <TableHead className="w-[80px]">Unidad</TableHead>
                         <TableHead className="w-[120px] text-right">Total ejecutado</TableHead>
-                        <TableHead className="w-[140px] text-right">Importe (S/)</TableHead>
+                        <TableHead className="w-[140px] text-right">Importe</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -477,28 +606,25 @@ function ExpedientePage() {
                           <TableCell>{r.item.description}</TableCell>
                           <TableCell className="text-xs">{r.item.unit}</TableCell>
                           <TableCell className="text-right font-mono">{formatNum(r.qtyCurrent, 2)}</TableCell>
-                          <TableCell className="text-right font-mono">{formatMoney(r.amountCurrent, project?.currency_code ?? "PEN")}</TableCell>
+                          <TableCell className="text-right font-mono">{formatMoney(r.amountCurrent, currency)}</TableCell>
                         </TableRow>
                       ))}
                       {summaryRows.length > 0 && (
                         <TableRow className="bg-muted/40 font-semibold">
                           <TableCell colSpan={4} className="text-right">Subtotal del período</TableCell>
-                          <TableCell className="text-right font-mono">{formatMoney(summaryTotal, project?.currency_code ?? "PEN")}</TableCell>
+                          <TableCell className="text-right font-mono">{formatMoney(summaryTotal, currency)}</TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Esta hoja resumen alimenta la valorización y el PDF del expediente. La ubicación general del proyecto se define en <em>Memoria valorizada → Generalidades</em>.
-                </p>
               </CardContent>
             </Card>
 
-            {/* B. Planillas detalladas (sustento técnico, expandible por partida) */}
+            {/* B. Planillas detalladas (sustento técnico) */}
             <Card>
               <CardHeader>
-                <CardTitle>Planillas detalladas de metrados</CardTitle>
+                <CardTitle>Planillas de metrados por partida</CardTitle>
                 <p className="text-xs text-muted-foreground">
                   Sustento técnico que alimenta la hoja resumen. Expande una partida para registrar referencias, dimensiones y fórmulas.
                 </p>
@@ -602,29 +728,6 @@ function ExpedientePage() {
         );
       })()}
 
-      {/* Step 3: narrativa */}
-      {step === 3 && period && (
-        <Card>
-          <CardHeader><CardTitle>Narrativa técnica del período</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              { key: "generalidades" as const, label: "Generalidades" },
-              { key: "metas" as const, label: "Metas del proyecto" },
-              { key: "ocurrencias" as const, label: "Ocurrencias y desarrollo de la obra" },
-              { key: "conclusiones" as const, label: "Conclusiones / observaciones del supervisor" },
-            ].map((f) => (
-              <div key={f.key}>
-                <Label>{f.label}</Label>
-                <Textarea
-                  rows={4}
-                  defaultValue={period[f.key] ?? ""}
-                  onBlur={(e) => saveNarrative({ [f.key]: e.target.value } as any)}
-                />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Step 4: deducciones */}
       {step === 4 && period && (
