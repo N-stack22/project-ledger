@@ -916,25 +916,56 @@ export function BudgetsPage() {
               </Card>
             );
           })() : null}
-          <Card>
-            <CardHeader>
-              <CardTitle>Partidas registradas</CardTitle>
-              <CardDescription>{currentItems.length} partidas cargadas para el proyecto seleccionado{currentItems.length > 12 ? " (mostrando las primeras 12)" : ""}.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SectionTable
-                headers={["Código", "Descripción", "Unidad", "Metrado base", "P.U.", "Parcial"]}
-                rows={currentItems.slice(0, 12).map((item) => [
-                  item.item_code || "—",
-                  item.description,
-                  item.unit,
-                  formatNumber(Number(item.base_quantity), 4),
-                  formatCurrency(Number(item.unit_price)),
-                  formatCurrency(Number(item.partial_amount)),
-                ])}
-              />
-            </CardContent>
-          </Card>
+          {(() => {
+            const registeredTotal = currentItems.reduce((sum, item) => sum + Number(item.partial_amount || 0), 0);
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Partidas registradas</CardTitle>
+                  <CardDescription>
+                    Listado completo de partidas cargadas para el proyecto seleccionado. Use el scroll interno para revisarlas todas.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-muted/30 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Total de partidas registradas</p>
+                      <p className="mt-1 text-2xl font-semibold text-foreground">Se registraron {currentItems.length} partidas</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/30 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Subtotal general del presupuesto</p>
+                      <p className="mt-1 text-2xl font-semibold text-foreground">{formatCurrency(registeredTotal)}</p>
+                    </div>
+                  </div>
+                  {currentItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No hay partidas registradas para este proyecto todavía.</p>
+                  ) : (
+                    <ScrollableImportTable
+                      headers={["Ítem", "Descripción", "Unidad", "Metrado", "Precio unitario", "Parcial"]}
+                      rows={[
+                        ...currentItems.map((item) => [
+                          item.item_code || "—",
+                          item.description,
+                          item.unit,
+                          formatNumber(Number(item.base_quantity), 4),
+                          formatCurrency(Number(item.unit_price)),
+                          formatCurrency(Number(item.partial_amount)),
+                        ]),
+                        [
+                          "",
+                          <span key="total-label" className="font-semibold">Subtotal general</span>,
+                          "",
+                          "",
+                          "",
+                          <span key="total-value" className="font-semibold">{formatCurrency(registeredTotal)}</span>,
+                        ],
+                      ]}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
         </div>
       </PageLayout>
     </AuthGuard>
