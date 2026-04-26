@@ -43,6 +43,7 @@ type Period = {
   metas: string | null;
   ocurrencias: string | null;
   conclusiones: string | null;
+  resumen_ejecutivo: string | null;
 };
 
 const STEPS = [
