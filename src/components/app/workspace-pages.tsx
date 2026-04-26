@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -56,21 +56,46 @@ const projectSchema = z.object({
   start_date: z.string().optional(),
 });
 
-const fichaTecnicaSchema = z.object({
-  entity_name: z.string().trim().max(180).optional(),
-  contractor_name: z.string().trim().max(180).optional(),
-  supervisor_name: z.string().trim().max(180).optional(),
-  resident_name: z.string().trim().max(180).optional(),
-  execution_modality: z.string().trim().max(120).optional(),
-  location: z.string().trim().max(180).optional(),
-  execution_contract: z.string().trim().max(180).optional(),
-  supervision_contract: z.string().trim().max(180).optional(),
-  contract_amount: z.coerce.number().min(0),
-  start_date: z.string().optional(),
-  execution_term_days: z.coerce.number().int().min(0).optional(),
-  planned_end_date: z.string().optional(),
-  status: z.enum(["draft", "active", "closing", "closed", "archived"]),
-});
+const fichaTecnicaSchema = z
+  .object({
+    entity_name: z.string().trim().max(180).optional(),
+    contractor_name: z.string().trim().max(180).optional(),
+    supervisor_name: z.string().trim().max(180).optional(),
+    resident_name: z.string().trim().max(180).optional(),
+    execution_modality: z.string().trim().max(120).optional(),
+    location: z.string().trim().max(180).optional(),
+    execution_contract: z.string().trim().max(180).optional(),
+    supervision_contract: z.string().trim().max(180).optional(),
+    contract_amount: z.coerce.number().min(0),
+    start_date: z.string().optional(),
+    execution_term_days: z.coerce.number().int().min(0).optional(),
+    planned_end_date: z.string().optional(),
+    status: z.enum(["draft", "active", "closing", "closed", "archived"]),
+  })
+  .superRefine((values, ctx) => {
+    const { start_date, planned_end_date, execution_term_days } = values;
+    if (start_date && planned_end_date) {
+      const start = new Date(start_date);
+      const end = new Date(planned_end_date);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+      if (end < start) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["planned_end_date"],
+          message: "La fecha de término debe ser posterior a la fecha de inicio.",
+        });
+        return;
+      }
+      const computed = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+      if (execution_term_days && execution_term_days > 0 && execution_term_days !== computed) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["execution_term_days"],
+          message: `El plazo no coincide con las fechas (${computed} días calendario entre inicio y término).`,
+        });
+      }
+    }
+  });
 
 const metradoSchema = z.object({
   project_id: z.string().uuid(),
@@ -186,73 +211,97 @@ export function LoginPage() {
   };
 
   return (
-    <div className="grid min-h-[calc(100vh-6rem)] gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-      <section className="space-y-6">
-        <Badge variant="outline">Sistema web de ingeniería civil</Badge>
-        <div className="space-y-4">
-          <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-foreground">
-            Gestión integral de metrados, valorizaciones y liquidación de obras para JJ&amp;PP Ingenieros.
-          </h1>
-          <p className="max-w-2xl text-base text-muted-foreground">
-            Plataforma operativa para registrar metrados ejecutados, controlar memorias valorizadas, calcular valorizaciones mensuales y consolidar la liquidación final con trazabilidad completa.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            ["Control mensual", "Metrados, memoria valorizada y valorización enlazados por periodo."],
-            ["Trazabilidad", "Bitácora auditable de cambios, revisiones y aprobaciones."],
-            ["Documentos", "Exportación inicial a PDF y Excel desde el flujo operativo."],
-          ].map(([title, text]) => (
-            <Card key={title}>
-              <CardHeader>
-                <CardTitle className="text-base">{title}</CardTitle>
-                <CardDescription>{text}</CardDescription>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      </section>
+    <div className="relative min-h-screen w-full overflow-hidden bg-background">
+      {/* Decorative background */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 h-[28rem] w-[28rem] rounded-full bg-accent/20 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,hsl(var(--primary)/0.08),transparent_60%)]" />
+      </div>
 
-      <Card className="border-border/80 shadow-sm">
-        <CardHeader>
-          <CardTitle>{mode === "signin" ? "Ingresar al sistema" : "Crear acceso inicial"}</CardTitle>
-          <CardDescription>
-            {mode === "signin"
-              ? "Usa tu correo corporativo para entrar al panel operativo."
-              : "El primer usuario registrado recibirá el rol administrador automáticamente."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={submit}>
-            {mode === "signup" ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Nombre completo</label>
-                <Input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} required />
-              </div>
-            ) : null}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Correo</label>
-              <Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required />
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-10 sm:px-10 lg:px-16 lg:py-16">
+        <div className="grid flex-1 items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          {/* Left: brand & value props */}
+          <section className="space-y-8">
+            <div className="space-y-5">
+              <Badge variant="outline" className="px-3 py-1 text-xs tracking-wide">
+                Sistema web · Ingeniería civil
+              </Badge>
+              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
+                Gestión integral de metrados, valorizaciones y liquidación de obras.
+              </h1>
+              <p className="max-w-xl text-base leading-relaxed text-muted-foreground">
+                Plataforma operativa de <span className="font-medium text-foreground">JJ&amp;PP Ingenieros</span> para registrar metrados ejecutados, controlar memorias valorizadas, calcular valorizaciones mensuales y consolidar la liquidación final con trazabilidad completa.
+              </p>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Contraseña</label>
-              <Input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} required />
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["Control mensual", "Metrados, memoria y valorización enlazados por periodo."],
+                ["Trazabilidad", "Bitácora auditable de cambios y aprobaciones."],
+                ["Documentos", "Exportación a PDF y Excel desde el flujo operativo."],
+              ].map(([title, text]) => (
+                <div key={title} className="rounded-lg border border-border/60 bg-card/50 p-4 backdrop-blur-sm">
+                  <p className="text-sm font-semibold text-foreground">{title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+                </div>
+              ))}
             </div>
-            {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <Button className="w-full" type="submit" disabled={busy}>
-              {busy ? "Procesando…" : mode === "signin" ? "Ingresar" : "Crear cuenta"}
-            </Button>
-            <Button className="w-full" type="button" variant="outline" onClick={() => {
-              setError(null);
-              setNotice(null);
-              setMode((current) => (current === "signin" ? "signup" : "signin"));
-            }}>
-              {mode === "signin" ? "Registrar primer acceso" : "Ya tengo cuenta"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </section>
+
+          {/* Right: auth card */}
+          <div className="flex justify-center lg:justify-end">
+            <Card className="w-full max-w-md border-border/70 bg-card/95 shadow-xl backdrop-blur">
+              <CardHeader className="space-y-2 px-8 pt-8">
+                <CardTitle className="text-2xl">
+                  {mode === "signin" ? "Ingresar al sistema" : "Crear acceso inicial"}
+                </CardTitle>
+                <CardDescription className="text-sm leading-relaxed">
+                  {mode === "signin"
+                    ? "Usa tu correo corporativo para acceder al panel operativo."
+                    : "El primer usuario registrado recibirá el rol administrador automáticamente."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-8 pb-8">
+                <form className="space-y-5" onSubmit={submit}>
+                  {mode === "signup" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Nombre completo</label>
+                      <Input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} required />
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Correo</label>
+                    <Input type="email" autoComplete="email" placeholder="tu.correo@empresa.com" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Contraseña</label>
+                    <Input type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} placeholder="••••••••" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} required />
+                  </div>
+                  {notice ? <p className="rounded-md bg-muted/60 p-3 text-sm text-muted-foreground">{notice}</p> : null}
+                  {error ? <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+                  <Button className="w-full" type="submit" disabled={busy}>
+                    {busy ? "Procesando…" : mode === "signin" ? "Ingresar" : "Crear cuenta"}
+                  </Button>
+                  <div className="relative py-1">
+                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border/60" /></div>
+                    <div className="relative flex justify-center"><span className="bg-card px-3 text-xs uppercase tracking-wider text-muted-foreground">o</span></div>
+                  </div>
+                  <Button className="w-full" type="button" variant="outline" onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    setMode((current) => (current === "signin" ? "signup" : "signin"));
+                  }}>
+                    {mode === "signin" ? "Registrar primer acceso" : "Ya tengo cuenta"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        <p className="mt-10 text-center text-xs text-muted-foreground">
+          © {new Date().getFullYear()} JJ&amp;PP Ingenieros · Plataforma de gestión de obras
+        </p>
+      </div>
     </div>
   );
 }
@@ -367,6 +416,40 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
     },
   });
 
+  // Sync execution_term_days <-> start_date / planned_end_date
+  // - Si cambian ambas fechas, recalcula el plazo (días calendario inclusivos).
+  // - Si el usuario edita manualmente el plazo y existe start_date, recalcula la fecha de término.
+  const startDate = form.watch("start_date");
+  const endDate = form.watch("planned_end_date");
+  const termDays = form.watch("execution_term_days");
+  const lastEditedRef = useRef<"dates" | "term" | null>(null);
+
+  useEffect(() => {
+    if (lastEditedRef.current === "term") return;
+    if (!startDate || !endDate) return;
+    const s = new Date(startDate);
+    const e = new Date(endDate);
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || e < s) return;
+    const computed = Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1;
+    if (computed !== Number(termDays || 0)) {
+      form.setValue("execution_term_days", computed, { shouldValidate: true, shouldDirty: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    if (lastEditedRef.current !== "term") return;
+    if (!startDate || !termDays || Number(termDays) <= 0) return;
+    const s = new Date(startDate);
+    if (Number.isNaN(s.getTime())) return;
+    const e = new Date(s.getTime() + (Number(termDays) - 1) * 86_400_000);
+    const iso = e.toISOString().slice(0, 10);
+    if (iso !== endDate) {
+      form.setValue("planned_end_date", iso, { shouldValidate: true, shouldDirty: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termDays, startDate]);
+
   const submit = form.handleSubmit(async (values) => {
     const payload = {
       entity_name: values.entity_name || null,
@@ -439,13 +522,20 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
                 <FormItem><FormLabel>Monto contractual *</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="start_date" render={({ field }) => (
-                <FormItem><FormLabel>Fecha de inicio *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Fecha de inicio *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} onChange={(e) => { lastEditedRef.current = "dates"; field.onChange(e); }} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="execution_term_days" render={({ field }) => (
-                <FormItem><FormLabel>Plazo de ejecución (días) *</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Plazo de ejecución (días) *</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} {...field} value={field.value ?? 0} onChange={(e) => { lastEditedRef.current = "term"; field.onChange(e); }} />
+                  </FormControl>
+                  <FormDescription>Se calcula automáticamente desde las fechas de inicio y término (días calendario, inclusivos).</FormDescription>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="planned_end_date" render={({ field }) => (
-                <FormItem><FormLabel>Fecha de término *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Fecha de término *</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} onChange={(e) => { lastEditedRef.current = "dates"; field.onChange(e); }} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="status" render={({ field }) => (
                 <FormItem><FormLabel>Estado del proyecto *</FormLabel>
