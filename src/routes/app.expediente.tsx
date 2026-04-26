@@ -669,7 +669,13 @@ function ExpedientePage() {
         <Button variant="outline" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Anterior
         </Button>
-        <Button onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))} disabled={step === STEPS.length || (step === 1 && !periodId)}>
+        <Button
+          onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))}
+          disabled={
+            step === STEPS.length ||
+            (step === 1 && (!periodId || items.length === 0))
+          }
+        >
           Siguiente <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
