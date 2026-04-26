@@ -387,27 +387,51 @@ function ExpedientePage() {
 
             {projectId && (
               <>
-                <div>
-                  <Label>Períodos existentes</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {periods.length === 0 && <span className="text-sm text-muted-foreground">Sin períodos aún.</span>}
-                    {periods.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => setPeriodId(p.id)}
-                        className={`rounded-md border px-3 py-2 text-left text-sm ${periodId === p.id ? "border-primary bg-primary/10" : "border-border"}`}
-                      >
-                        <div className="font-semibold">Valorización N° {String(p.period_number).padStart(2, "0")}</div>
-                        <div className="text-xs text-muted-foreground">{p.date_from} → {p.date_to}</div>
-                      </button>
-                    ))}
+                {items.length === 0 && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
+                      <div className="flex-1">
+                        <p className="font-semibold">Primero debes cargar presupuesto y partidas del proyecto.</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          No es posible crear una valorización mensual sin partidas registradas.
+                        </p>
+                        <Button asChild size="sm" variant="outline" className="mt-2">
+                          <Link to="/app/budgets">Ir a Presupuesto y partidas</Link>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <NewPeriodForm
-                  defaultNumber={(Math.max(0, ...periods.map((p) => p.period_number)) || 0) + 1}
-                  onCreate={createPeriod}
-                />
+                {items.length > 0 && (
+                  <>
+                    <div>
+                      <Label>Períodos existentes</Label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {periods.length === 0 && <span className="text-sm text-muted-foreground">Sin períodos aún. Crea el primero abajo.</span>}
+                        {periods.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => setPeriodId(p.id)}
+                            className={`rounded-md border px-3 py-2 text-left text-sm ${periodId === p.id ? "border-primary bg-primary/10" : "border-border"}`}
+                          >
+                            <div className="font-semibold">Valorización N° {String(p.period_number).padStart(2, "0")}</div>
+                            <div className="text-xs text-muted-foreground">{p.date_from} → {p.date_to}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <NewPeriodForm
+                      defaultNumber={(Math.max(0, ...periods.map((p) => p.period_number)) || 0) + 1}
+                      previousPeriod={periods.slice().sort((a, b) => a.period_number - b.period_number).pop() ?? null}
+                      projectStart={project?.start_date ?? null}
+                      projectEnd={project?.actual_end_date ?? project?.planned_end_date ?? project?.planned_completion_date ?? null}
+                      onCreate={createPeriod}
+                    />
+                  </>
+                )}
               </>
             )}
           </CardContent>
