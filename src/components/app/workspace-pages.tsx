@@ -186,73 +186,97 @@ export function LoginPage() {
   };
 
   return (
-    <div className="grid min-h-[calc(100vh-6rem)] gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-      <section className="space-y-6">
-        <Badge variant="outline">Sistema web de ingeniería civil</Badge>
-        <div className="space-y-4">
-          <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-foreground">
-            Gestión integral de metrados, valorizaciones y liquidación de obras para JJ&amp;PP Ingenieros.
-          </h1>
-          <p className="max-w-2xl text-base text-muted-foreground">
-            Plataforma operativa para registrar metrados ejecutados, controlar memorias valorizadas, calcular valorizaciones mensuales y consolidar la liquidación final con trazabilidad completa.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            ["Control mensual", "Metrados, memoria valorizada y valorización enlazados por periodo."],
-            ["Trazabilidad", "Bitácora auditable de cambios, revisiones y aprobaciones."],
-            ["Documentos", "Exportación inicial a PDF y Excel desde el flujo operativo."],
-          ].map(([title, text]) => (
-            <Card key={title}>
-              <CardHeader>
-                <CardTitle className="text-base">{title}</CardTitle>
-                <CardDescription>{text}</CardDescription>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      </section>
+    <div className="relative min-h-screen w-full overflow-hidden bg-background">
+      {/* Decorative background */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 h-[28rem] w-[28rem] rounded-full bg-accent/20 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,hsl(var(--primary)/0.08),transparent_60%)]" />
+      </div>
 
-      <Card className="border-border/80 shadow-sm">
-        <CardHeader>
-          <CardTitle>{mode === "signin" ? "Ingresar al sistema" : "Crear acceso inicial"}</CardTitle>
-          <CardDescription>
-            {mode === "signin"
-              ? "Usa tu correo corporativo para entrar al panel operativo."
-              : "El primer usuario registrado recibirá el rol administrador automáticamente."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={submit}>
-            {mode === "signup" ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Nombre completo</label>
-                <Input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} required />
-              </div>
-            ) : null}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Correo</label>
-              <Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required />
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-10 sm:px-10 lg:px-16 lg:py-16">
+        <div className="grid flex-1 items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          {/* Left: brand & value props */}
+          <section className="space-y-8">
+            <div className="space-y-5">
+              <Badge variant="outline" className="px-3 py-1 text-xs tracking-wide">
+                Sistema web · Ingeniería civil
+              </Badge>
+              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
+                Gestión integral de metrados, valorizaciones y liquidación de obras.
+              </h1>
+              <p className="max-w-xl text-base leading-relaxed text-muted-foreground">
+                Plataforma operativa de <span className="font-medium text-foreground">JJ&amp;PP Ingenieros</span> para registrar metrados ejecutados, controlar memorias valorizadas, calcular valorizaciones mensuales y consolidar la liquidación final con trazabilidad completa.
+              </p>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Contraseña</label>
-              <Input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} required />
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["Control mensual", "Metrados, memoria y valorización enlazados por periodo."],
+                ["Trazabilidad", "Bitácora auditable de cambios y aprobaciones."],
+                ["Documentos", "Exportación a PDF y Excel desde el flujo operativo."],
+              ].map(([title, text]) => (
+                <div key={title} className="rounded-lg border border-border/60 bg-card/50 p-4 backdrop-blur-sm">
+                  <p className="text-sm font-semibold text-foreground">{title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+                </div>
+              ))}
             </div>
-            {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <Button className="w-full" type="submit" disabled={busy}>
-              {busy ? "Procesando…" : mode === "signin" ? "Ingresar" : "Crear cuenta"}
-            </Button>
-            <Button className="w-full" type="button" variant="outline" onClick={() => {
-              setError(null);
-              setNotice(null);
-              setMode((current) => (current === "signin" ? "signup" : "signin"));
-            }}>
-              {mode === "signin" ? "Registrar primer acceso" : "Ya tengo cuenta"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </section>
+
+          {/* Right: auth card */}
+          <div className="flex justify-center lg:justify-end">
+            <Card className="w-full max-w-md border-border/70 bg-card/95 shadow-xl backdrop-blur">
+              <CardHeader className="space-y-2 px-8 pt-8">
+                <CardTitle className="text-2xl">
+                  {mode === "signin" ? "Ingresar al sistema" : "Crear acceso inicial"}
+                </CardTitle>
+                <CardDescription className="text-sm leading-relaxed">
+                  {mode === "signin"
+                    ? "Usa tu correo corporativo para acceder al panel operativo."
+                    : "El primer usuario registrado recibirá el rol administrador automáticamente."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-8 pb-8">
+                <form className="space-y-5" onSubmit={submit}>
+                  {mode === "signup" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Nombre completo</label>
+                      <Input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} required />
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Correo</label>
+                    <Input type="email" autoComplete="email" placeholder="tu.correo@empresa.com" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Contraseña</label>
+                    <Input type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} placeholder="••••••••" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} required />
+                  </div>
+                  {notice ? <p className="rounded-md bg-muted/60 p-3 text-sm text-muted-foreground">{notice}</p> : null}
+                  {error ? <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+                  <Button className="w-full" type="submit" disabled={busy}>
+                    {busy ? "Procesando…" : mode === "signin" ? "Ingresar" : "Crear cuenta"}
+                  </Button>
+                  <div className="relative py-1">
+                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border/60" /></div>
+                    <div className="relative flex justify-center"><span className="bg-card px-3 text-xs uppercase tracking-wider text-muted-foreground">o</span></div>
+                  </div>
+                  <Button className="w-full" type="button" variant="outline" onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    setMode((current) => (current === "signin" ? "signup" : "signin"));
+                  }}>
+                    {mode === "signin" ? "Registrar primer acceso" : "Ya tengo cuenta"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        <p className="mt-10 text-center text-xs text-muted-foreground">
+          © {new Date().getFullYear()} JJ&amp;PP Ingenieros · Plataforma de gestión de obras
+        </p>
+      </div>
     </div>
   );
 }
