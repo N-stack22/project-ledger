@@ -439,82 +439,168 @@ function ExpedientePage() {
         </Card>
       )}
 
-      {/* Step 2: metrados detallados */}
-      {step === 2 && period && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Metrados detallados — Valorización N° {period.period_number}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <Label>Agregar línea para partida</Label>
-                <Select onValueChange={(v) => addLine(v)}>
-                  <SelectTrigger><SelectValue placeholder="Elige partida..." /></SelectTrigger>
-                  <SelectContent>
-                    {items.map((it) => (
-                      <SelectItem key={it.id} value={it.id}>{it.item_code} — {it.description}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Partida</TableHead>
-                    <TableHead>Ubicación</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead className="w-[60px]">N°</TableHead>
-                    <TableHead className="w-[80px]">Largo</TableHead>
-                    <TableHead className="w-[80px]">Ancho</TableHead>
-                    <TableHead className="w-[80px]">Alto</TableHead>
-                    <TableHead className="w-[100px]">Fórmula</TableHead>
-                    <TableHead className="w-[100px] text-right">Parcial</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((l) => {
-                    const it = items.find((i) => i.id === l.item_id);
-                    return (
-                      <TableRow key={l.id}>
-                        <TableCell className="text-xs">{it?.item_code} — {it?.unit}</TableCell>
-                        <TableCell><Input className="h-8" defaultValue={l.group_label ?? ""} onBlur={(e) => updateLine(l.id, { group_label: e.target.value })} placeholder="Calle / tramo" /></TableCell>
-                        <TableCell><Input className="h-8" defaultValue={l.description ?? ""} onBlur={(e) => updateLine(l.id, { description: e.target.value })} /></TableCell>
-                        <TableCell><Input className="h-8" type="number" defaultValue={l.num_elements ?? 1} onBlur={(e) => updateLine(l.id, { num_elements: Number(e.target.value) })} /></TableCell>
-                        <TableCell><Input className="h-8" type="number" defaultValue={l.length ?? ""} onBlur={(e) => updateLine(l.id, { length: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
-                        <TableCell><Input className="h-8" type="number" defaultValue={l.width ?? ""} onBlur={(e) => updateLine(l.id, { width: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
-                        <TableCell><Input className="h-8" type="number" defaultValue={l.height ?? ""} onBlur={(e) => updateLine(l.id, { height: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
-                        <TableCell><Input className="h-8" defaultValue={l.formula ?? ""} placeholder="L*A*H*N" onBlur={(e) => updateLine(l.id, { formula: e.target.value || null })} /></TableCell>
-                        <TableCell className="text-right font-mono">{formatNum(Number(l.partial), 2)}</TableCell>
-                        <TableCell><Button variant="ghost" size="icon" onClick={() => removeLine(l.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+      {/* Step 2: Hoja resumen + planillas detalladas */}
+      {step === 2 && period && (() => {
+        const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
+        const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
+        return (
+          <div className="space-y-4">
+            {/* A. Hoja resumen consolidada (vista principal) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Partidas ejecutadas a la fecha de la valorización N° {period.period_number}</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Hoja resumen consolidada del período {period.date_from} → {period.date_to}. Los totales se calculan automáticamente desde las planillas detalladas.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40">
+                        <TableHead className="w-[120px]">Partida</TableHead>
+                        <TableHead>Descripción</TableHead>
+                        <TableHead className="w-[80px]">Unidad</TableHead>
+                        <TableHead className="w-[120px] text-right">Total ejecutado</TableHead>
+                        <TableHead className="w-[140px] text-right">Importe (S/)</TableHead>
                       </TableRow>
-                    );
-                  })}
-                  {lines.length === 0 && (
-                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Sin metrados aún. Agrega una línea seleccionando una partida.</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {summaryRows.length === 0 && (
+                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                          Aún no hay partidas ejecutadas. Agrega planillas detalladas en la sección inferior.
+                        </TableCell></TableRow>
+                      )}
+                      {summaryRows.map((r) => (
+                        <TableRow key={r.item.id}>
+                          <TableCell className="font-mono text-xs">{r.item.item_code}</TableCell>
+                          <TableCell>{r.item.description}</TableCell>
+                          <TableCell className="text-xs">{r.item.unit}</TableCell>
+                          <TableCell className="text-right font-mono">{formatNum(r.qtyCurrent, 2)}</TableCell>
+                          <TableCell className="text-right font-mono">{formatMoney(r.amountCurrent, project?.currency_code ?? "PEN")}</TableCell>
+                        </TableRow>
+                      ))}
+                      {summaryRows.length > 0 && (
+                        <TableRow className="bg-muted/40 font-semibold">
+                          <TableCell colSpan={4} className="text-right">Subtotal del período</TableCell>
+                          <TableCell className="text-right font-mono">{formatMoney(summaryTotal, project?.currency_code ?? "PEN")}</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Esta hoja resumen alimenta la valorización y el PDF del expediente. La ubicación general del proyecto se define en <em>Memoria valorizada → Generalidades</em>.
+                </p>
+              </CardContent>
+            </Card>
 
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="mb-2 text-xs font-semibold text-muted-foreground">Hoja resumen de metrados (período actual)</p>
-              <div className="grid grid-cols-1 gap-1 text-xs md:grid-cols-2">
-                {valTable.filter((r) => r.qtyCurrent > 0).map((r) => (
-                  <div key={r.item.id} className="flex justify-between border-b py-1">
-                    <span className="truncate">{r.item.item_code} {r.item.description}</span>
-                    <span className="font-mono">{formatNum(r.qtyCurrent, 2)} {r.item.unit}</span>
+            {/* B. Planillas detalladas (sustento técnico, expandible por partida) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Planillas detalladas de metrados</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Sustento técnico que alimenta la hoja resumen. Expande una partida para registrar referencias, dimensiones y fórmulas.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label>Agregar planilla para partida</Label>
+                    <Select onValueChange={(v) => { void addLine(v); setExpandedItemId(v); }}>
+                      <SelectTrigger><SelectValue placeholder="Elige partida..." /></SelectTrigger>
+                      <SelectContent>
+                        {items.map((it) => (
+                          <SelectItem key={it.id} value={it.id}>{it.item_code} — {it.description}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                </div>
+
+                {items.filter((it) => lines.some((l) => l.item_id === it.id)).length === 0 && (
+                  <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                    Aún no hay planillas. Selecciona una partida arriba para crear su primera línea.
+                  </p>
+                )}
+
+                <div className="space-y-2">
+                  {items
+                    .filter((it) => lines.some((l) => l.item_id === it.id))
+                    .map((it) => {
+                      const itLines = lines.filter((l) => l.item_id === it.id);
+                      const itTotal = itLines.reduce((s, l) => s + Number(l.partial || 0), 0);
+                      const isOpen = expandedItemId === it.id;
+                      return (
+                        <div key={it.id} className="rounded-md border">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedItemId(isOpen ? null : it.id)}
+                            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                              <span className="font-mono text-xs">{it.item_code}</span>
+                              <span className="truncate text-sm">{it.description}</span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0 text-xs">
+                              <Badge variant="secondary">{itLines.length} línea{itLines.length === 1 ? "" : "s"}</Badge>
+                              <span className="font-mono">Total: {formatNum(itTotal, 2)} {it.unit}</span>
+                            </div>
+                          </button>
+                          {isOpen && (
+                            <div className="overflow-x-auto border-t bg-muted/10 p-2">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Referencia (tramo / sector)</TableHead>
+                                    <TableHead>Detalle de sustento</TableHead>
+                                    <TableHead className="w-[60px]">N°</TableHead>
+                                    <TableHead className="w-[80px]">Largo</TableHead>
+                                    <TableHead className="w-[80px]">Ancho</TableHead>
+                                    <TableHead className="w-[80px]">Alto</TableHead>
+                                    <TableHead className="w-[110px]">Fórmula</TableHead>
+                                    <TableHead className="w-[100px] text-right">Parcial</TableHead>
+                                    <TableHead className="w-[40px]"></TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {itLines.map((l) => (
+                                    <TableRow key={l.id}>
+                                      <TableCell><Input className="h-8" defaultValue={l.group_label ?? ""} onBlur={(e) => updateLine(l.id, { group_label: e.target.value })} placeholder="Calle / tramo / sector" /></TableCell>
+                                      <TableCell><Input className="h-8" defaultValue={l.description ?? ""} onBlur={(e) => updateLine(l.id, { description: e.target.value })} placeholder="Detalle de sustento" /></TableCell>
+                                      <TableCell><Input className="h-8" type="number" defaultValue={l.num_elements ?? 1} onBlur={(e) => updateLine(l.id, { num_elements: Number(e.target.value) })} /></TableCell>
+                                      <TableCell><Input className="h-8" type="number" defaultValue={l.length ?? ""} onBlur={(e) => updateLine(l.id, { length: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
+                                      <TableCell><Input className="h-8" type="number" defaultValue={l.width ?? ""} onBlur={(e) => updateLine(l.id, { width: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
+                                      <TableCell><Input className="h-8" type="number" defaultValue={l.height ?? ""} onBlur={(e) => updateLine(l.id, { height: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
+                                      <TableCell><Input className="h-8" defaultValue={l.formula ?? ""} placeholder="L*A*H*N" onBlur={(e) => updateLine(l.id, { formula: e.target.value || null })} /></TableCell>
+                                      <TableCell className="text-right font-mono">{formatNum(Number(l.partial), 2)}</TableCell>
+                                      <TableCell><Button variant="ghost" size="icon" onClick={() => removeLine(l.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                                    </TableRow>
+                                  ))}
+                                  <TableRow className="bg-muted/30 font-medium">
+                                    <TableCell colSpan={7} className="text-right text-xs">Total partida</TableCell>
+                                    <TableCell className="text-right font-mono">{formatNum(itTotal, 2)} {it.unit}</TableCell>
+                                    <TableCell></TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                              <div className="mt-2 flex justify-end">
+                                <Button size="sm" variant="outline" onClick={() => addLine(it.id)}>
+                                  <Plus className="mr-1 h-4 w-4" /> Agregar línea
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Step 3: narrativa */}
       {step === 3 && period && (
