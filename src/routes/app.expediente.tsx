@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageLayout } from "@/components/app/page-layout";
@@ -138,8 +138,69 @@ function ExpedientePage() {
   const currency = project?.currency_code ?? "PEN";
 
   // -------- Acciones --------
-  async function createPeriod(form: { number: number; from: string; to: string }) {
-    if (!projectId || !user) return;
+  async function createPeriod(form: { number: number; from: string; to: string }): Promise<boolean> {
+    if (!projectId || !user) return false;
+    if (items.length === 0) {
+      toast.error("Primero debes cargar presupuesto y partidas del proyecto.");
+      return false;
+    }
+
+    // Validaciones de fechas
+    const from = new Date(form.from);
+    const to = new Date(form.to);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      toast.error("Fechas inválidas.");
+      return false;
+    }
+    if (to < from) {
+      toast.error("La fecha 'Hasta' debe ser mayor o igual a 'Desde'.");
+      return false;
+    }
+
+    // Rango lógico del proyecto
+    if (project?.start_date) {
+      const ps = new Date(project.start_date);
+      if (from < ps) {
+        toast.error(`'Desde' no puede ser anterior al inicio del proyecto (${project.start_date}).`);
+        return false;
+      }
+    }
+    const projectEnd = project?.actual_end_date ?? project?.planned_end_date ?? project?.planned_completion_date ?? null;
+    if (projectEnd) {
+      const pe = new Date(projectEnd);
+      // permitir 30 días de tolerancia más allá del fin planificado
+      const tolerance = new Date(pe.getTime() + 30 * 86_400_000);
+      if (to > tolerance) {
+        toast.error(`'Hasta' excede el plazo del proyecto (fin: ${projectEnd}).`);
+        return false;
+      }
+    }
+
+    // Continuidad con valorización anterior
+    const prev = periods
+      .slice()
+      .sort((a, b) => a.period_number - b.period_number)
+      .filter((p) => p.period_number < form.number)
+      .pop();
+    if (prev) {
+      const prevTo = new Date(prev.date_to);
+      if (from <= prevTo) {
+        toast.error(`'Desde' debe ser mayor que el fin de la valorización N° ${prev.period_number} (${prev.date_to}).`);
+        return false;
+      }
+    }
+
+    // Sin traslape con períodos existentes
+    const overlap = periods.find((p) => {
+      const a = new Date(p.date_from);
+      const b = new Date(p.date_to);
+      return from <= b && to >= a;
+    });
+    if (overlap) {
+      toast.error(`El período se solapa con la valorización N° ${overlap.period_number} (${overlap.date_from} → ${overlap.date_to}).`);
+      return false;
+    }
+
     const { data, error } = await supabase
       .from("valuation_periods")
       .insert({
@@ -153,11 +214,12 @@ function ExpedientePage() {
       .single();
     if (error) {
       toast.error(error.message);
-      return;
+      return false;
     }
     setPeriods((p) => [...p, data as Period]);
     setPeriodId(data!.id);
     toast.success("Período creado");
+    return true;
   }
 
   async function addLine(itemId: string) {
@@ -325,27 +387,51 @@ function ExpedientePage() {
 
             {projectId && (
               <>
-                <div>
-                  <Label>Períodos existentes</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {periods.length === 0 && <span className="text-sm text-muted-foreground">Sin períodos aún.</span>}
-                    {periods.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => setPeriodId(p.id)}
-                        className={`rounded-md border px-3 py-2 text-left text-sm ${periodId === p.id ? "border-primary bg-primary/10" : "border-border"}`}
-                      >
-                        <div className="font-semibold">Valorización N° {String(p.period_number).padStart(2, "0")}</div>
-                        <div className="text-xs text-muted-foreground">{p.date_from} → {p.date_to}</div>
-                      </button>
-                    ))}
+                {items.length === 0 && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
+                      <div className="flex-1">
+                        <p className="font-semibold">Primero debes cargar presupuesto y partidas del proyecto.</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          No es posible crear una valorización mensual sin partidas registradas.
+                        </p>
+                        <Button asChild size="sm" variant="outline" className="mt-2">
+                          <Link to="/app/budgets">Ir a Presupuesto y partidas</Link>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <NewPeriodForm
-                  defaultNumber={(Math.max(0, ...periods.map((p) => p.period_number)) || 0) + 1}
-                  onCreate={createPeriod}
-                />
+                {items.length > 0 && (
+                  <>
+                    <div>
+                      <Label>Períodos existentes</Label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {periods.length === 0 && <span className="text-sm text-muted-foreground">Sin períodos aún. Crea el primero abajo.</span>}
+                        {periods.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => setPeriodId(p.id)}
+                            className={`rounded-md border px-3 py-2 text-left text-sm ${periodId === p.id ? "border-primary bg-primary/10" : "border-border"}`}
+                          >
+                            <div className="font-semibold">Valorización N° {String(p.period_number).padStart(2, "0")}</div>
+                            <div className="text-xs text-muted-foreground">{p.date_from} → {p.date_to}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <NewPeriodForm
+                      defaultNumber={(Math.max(0, ...periods.map((p) => p.period_number)) || 0) + 1}
+                      previousPeriod={periods.slice().sort((a, b) => a.period_number - b.period_number).pop() ?? null}
+                      projectStart={project?.start_date ?? null}
+                      projectEnd={project?.actual_end_date ?? project?.planned_end_date ?? project?.planned_completion_date ?? null}
+                      onCreate={createPeriod}
+                    />
+                  </>
+                )}
               </>
             )}
           </CardContent>
@@ -583,7 +669,13 @@ function ExpedientePage() {
         <Button variant="outline" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Anterior
         </Button>
-        <Button onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))} disabled={step === STEPS.length || (step === 1 && !periodId)}>
+        <Button
+          onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))}
+          disabled={
+            step === STEPS.length ||
+            (step === 1 && (!periodId || items.length === 0))
+          }
+        >
           Siguiente <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
@@ -600,20 +692,113 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
   );
 }
 
-function NewPeriodForm({ defaultNumber, onCreate }: { defaultNumber: number; onCreate: (f: { number: number; from: string; to: string }) => void }) {
+function NewPeriodForm({
+  defaultNumber,
+  previousPeriod,
+  projectStart,
+  projectEnd,
+  onCreate,
+}: {
+  defaultNumber: number;
+  previousPeriod: Period | null;
+  projectStart: string | null;
+  projectEnd: string | null;
+  onCreate: (f: { number: number; from: string; to: string }) => Promise<boolean>;
+}) {
   const [number, setNumber] = useState(defaultNumber);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  useEffect(() => setNumber(defaultNumber), [defaultNumber]);
+  const [touched, setTouched] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Autocompletar en función de valorización anterior
+  useEffect(() => {
+    setNumber(defaultNumber);
+    if (touched) return;
+    let suggestedFrom = "";
+    if (previousPeriod?.date_to) {
+      const d = new Date(previousPeriod.date_to);
+      d.setDate(d.getDate() + 1);
+      suggestedFrom = d.toISOString().slice(0, 10);
+    } else if (projectStart) {
+      suggestedFrom = projectStart;
+    }
+    if (suggestedFrom) {
+      setFrom(suggestedFrom);
+      // sugerir fin de mes natural a partir de "from"
+      const f = new Date(suggestedFrom);
+      const endOfMonth = new Date(f.getFullYear(), f.getMonth() + 1, 0);
+      setTo(endOfMonth.toISOString().slice(0, 10));
+    }
+  }, [defaultNumber, previousPeriod, projectStart, touched]);
+
+  // Validación inline
+  const validation = (() => {
+    if (!from || !to) return { ok: false, msg: "Completa ambas fechas." };
+    const f = new Date(from);
+    const t = new Date(to);
+    if (t < f) return { ok: false, msg: "'Hasta' debe ser ≥ 'Desde'." };
+    if (previousPeriod) {
+      const pt = new Date(previousPeriod.date_to);
+      if (f <= pt) return { ok: false, msg: `'Desde' debe ser posterior al ${previousPeriod.date_to}.` };
+    }
+    if (projectStart && f < new Date(projectStart)) {
+      return { ok: false, msg: `'Desde' no puede ser anterior al inicio del proyecto (${projectStart}).` };
+    }
+    if (projectEnd) {
+      const pe = new Date(projectEnd);
+      const tolerance = new Date(pe.getTime() + 30 * 86_400_000);
+      if (t > tolerance) return { ok: false, msg: `'Hasta' excede el plazo del proyecto (fin: ${projectEnd}).` };
+    }
+    return { ok: true as const, msg: "" };
+  })();
+
   return (
     <div className="rounded-md border bg-muted/30 p-3">
-      <p className="mb-2 text-sm font-semibold">Nueva valorización</p>
+      <p className="mb-2 text-sm font-semibold">
+        {previousPeriod ? "Nueva valorización (continuación)" : "Primera valorización del proyecto"}
+      </p>
+      {previousPeriod && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          La valorización anterior (N° {previousPeriod.period_number}) terminó el {previousPeriod.date_to}.
+          Se sugiere iniciar al día siguiente.
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div><Label className="text-xs">N°</Label><Input type="number" value={number} onChange={(e) => setNumber(Number(e.target.value))} /></div>
-        <div><Label className="text-xs">Desde</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-        <div><Label className="text-xs">Hasta</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-        <div className="flex items-end"><Button className="w-full" disabled={!from || !to} onClick={() => onCreate({ number, from, to })}><Plus className="mr-1 h-4 w-4" />Crear</Button></div>
+        <div>
+          <Label className="text-xs">N°</Label>
+          <Input type="number" value={number} onChange={(e) => setNumber(Number(e.target.value))} />
+        </div>
+        <div>
+          <Label className="text-xs">Desde</Label>
+          <Input type="date" value={from} onChange={(e) => { setTouched(true); setFrom(e.target.value); }} />
+        </div>
+        <div>
+          <Label className="text-xs">Hasta</Label>
+          <Input type="date" value={to} onChange={(e) => { setTouched(true); setTo(e.target.value); }} />
+        </div>
+        <div className="flex items-end">
+          <Button
+            className="w-full"
+            disabled={!validation.ok || submitting}
+            onClick={async () => {
+              setSubmitting(true);
+              const ok = await onCreate({ number, from, to });
+              setSubmitting(false);
+              if (ok) {
+                setTouched(false);
+                setFrom("");
+                setTo("");
+              }
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" />Crear
+          </Button>
+        </div>
       </div>
+      {!validation.ok && (from || to) && (
+        <p className="mt-2 text-xs text-destructive">{validation.msg}</p>
+      )}
     </div>
   );
 }
