@@ -867,30 +867,55 @@ export function BudgetsPage() {
               <Button onClick={() => void uploadBudget()} disabled={!preview || !selectedProjectId}>Importar presupuesto</Button>
             </CardContent>
           </Card>
-          {preview ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Vista previa de importación</CardTitle>
-                <CardDescription>
-                  Mostrando las {preview.rows.length} partidas detectadas. Desplázate dentro de la tabla para revisarlas todas antes de importar.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollableImportTable
-                  headers={["Código", "Descripción", "Unidad", "Metrado base", "P.U.", "Parcial"]}
-                  rows={preview.rows.map((item) => [
-                    item.item_code || "—",
-                    item.description,
-                    item.unit,
-                    formatNumber(Number(item.base_quantity), 4),
-                    formatCurrency(Number(item.unit_price)),
-                    formatCurrency(Number(item.partial_amount)),
-                  ])}
-                />
-                <p className="mt-2 text-xs text-muted-foreground">Total: {preview.rows.length} filas · scroll vertical activo</p>
-              </CardContent>
-            </Card>
-          ) : null}
+          {preview ? (() => {
+            const grandTotal = preview.rows.reduce((acc, item) => acc + Number(item.partial_amount || 0), 0);
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vista previa de importación</CardTitle>
+                  <CardDescription>
+                    Revisa todas las partidas detectadas y el subtotal general antes de confirmar la importación.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-md border border-border bg-muted/40 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Total de partidas detectadas</p>
+                      <p className="text-2xl font-semibold text-foreground">{preview.rows.length}</p>
+                    </div>
+                    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Subtotal general del presupuesto</p>
+                      <p className="text-2xl font-semibold text-primary">{formatCurrency(grandTotal)}</p>
+                    </div>
+                  </div>
+                  <ScrollableImportTable
+                    headers={["Ítem", "Descripción", "Unidad", "Metrado", "Precio unitario", "Parcial"]}
+                    rows={[
+                      ...preview.rows.map((item) => [
+                        item.item_code || "—",
+                        item.description,
+                        item.unit,
+                        formatNumber(Number(item.base_quantity), 4),
+                        formatCurrency(Number(item.unit_price)),
+                        formatCurrency(Number(item.partial_amount)),
+                      ]),
+                      [
+                        "",
+                        <span className="font-semibold text-foreground">Subtotal general</span>,
+                        "",
+                        "",
+                        "",
+                        <span className="font-semibold text-primary">{formatCurrency(grandTotal)}</span>,
+                      ],
+                    ]}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {preview.rows.length} partidas mostradas · scroll vertical activo · subtotal general = suma de parciales.
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })() : null}
           <Card>
             <CardHeader>
               <CardTitle>Partidas registradas</CardTitle>
