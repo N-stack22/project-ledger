@@ -47,7 +47,7 @@ type Period = {
 
 const STEPS = [
   { id: 1, label: "Proyecto y período" },
-  { id: 2, label: "Metrados detallados" },
+  { id: 2, label: "Partidas ejecutadas y planillas" },
   { id: 3, label: "Narrativa técnica" },
   { id: 4, label: "Deducciones" },
   { id: 5, label: "Resumen y PDF" },
