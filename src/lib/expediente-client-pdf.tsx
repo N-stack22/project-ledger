@@ -317,10 +317,10 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     ),
   );
 
-  const doc = h(Document, null, Cover, Index, Ficha, Memoria, ResumenPage, PlanillasPage, CuadroPage, ResumenFinalPage);
+  const doc = h(Document, null, Cover, Index, Ficha, Memoria, ResumenPage, ResumenFinalPage);
   const blob = await pdf(doc as any).toBlob();
   const safeCode = clean(project.code).replace(/[^a-zA-Z0-9_-]+/g, "-");
-  const fileName = `expediente-${safeCode}-val${String(period.period_number).padStart(2, "0")}.pdf`;
+  const fileName = `memoria-informe-${safeCode}-val${String(period.period_number).padStart(2, "0")}.pdf`;
   const url = URL.createObjectURL(blob);
   return { fileName, url, blob };
 }
