@@ -1,4 +1,4 @@
-// Cálculos puros para el Expediente Mensual de Supervisión.
+// Cálculos puros para memoria valorizada, metrados y valorizaciones.
 // Importable desde cliente y servidor (sin dependencias de Supabase).
 
 import type { BudgetItemRow } from "@/lib/domain";
