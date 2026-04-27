@@ -35,7 +35,7 @@ import {
   toPeriodDate,
   valuationStatusLabels,
 } from "@/lib/business";
-import { parseRichTextDocument, stripHtml } from "@/lib/domain";
+import { parseRichTextDocument, stripHtml, type BudgetItemRow } from "@/lib/domain";
 import { AuthGuard } from "@/components/app/auth-guard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
