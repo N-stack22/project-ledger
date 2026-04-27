@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageLayout } from "@/components/app/page-layout";
@@ -18,7 +18,6 @@ import { isFichaTecnicaIncomplete } from "@/components/app/workspace-pages";
 import { useAuth } from "@/lib/auth";
 import {
   buildValuationTable,
-  computeLinePartial,
   deductionLabels,
   formatMoney,
   formatNum,
@@ -48,8 +47,8 @@ type Period = {
 
 const STEPS = [
   { id: 1, label: "Proyecto y período" },
-  { id: 2, label: "Memoria valorizada e informe técnico" },
-  { id: 3, label: "Metrados de partidas ejecutadas" },
+  { id: 2, label: "Ficha técnica" },
+  { id: 3, label: "Memoria valorizada e informe técnico" },
   { id: 4, label: "Deducciones" },
   { id: 5, label: "Resumen y PDF" },
 ] as const;
@@ -67,7 +66,6 @@ function ExpedientePage() {
   const [generating, setGenerating] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const project = projects.find((p) => p.id === projectId);
   const period = periods.find((p) => p.id === periodId);
@@ -222,40 +220,6 @@ function ExpedientePage() {
     setPeriodId(data!.id);
     toast.success("Período creado");
     return true;
-  }
-
-  async function addLine(itemId: string) {
-    if (!periodId || !projectId || !user) return;
-    const partial = computeLinePartial({ num_elements: 1 });
-    const { data, error } = await supabase
-      .from("metrado_lines")
-      .insert({
-        project_id: projectId,
-        period_id: periodId,
-        item_id: itemId,
-        num_elements: 1,
-        partial,
-        sort_order: lines.length,
-        created_by: user.id,
-      })
-      .select("*")
-      .single();
-    if (error) return toast.error(error.message);
-    setLines((l) => [...l, data as MetradoLine]);
-  }
-
-  async function updateLine(id: string, patch: Partial<MetradoLine>) {
-    const updated = lines.map((l) => (l.id === id ? { ...l, ...patch } : l));
-    const target = updated.find((l) => l.id === id)!;
-    const partial = computeLinePartial(target);
-    const final = { ...target, partial };
-    setLines(updated.map((l) => (l.id === id ? final : l)));
-    await supabase.from("metrado_lines").update({ ...patch, partial }).eq("id", id);
-  }
-
-  async function removeLine(id: string) {
-    setLines((l) => l.filter((x) => x.id !== id));
-    await supabase.from("metrado_lines").delete().eq("id", id);
   }
 
   async function saveNarrative(patch: Partial<Period>) {
