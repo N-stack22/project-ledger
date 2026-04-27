@@ -71,7 +71,7 @@ const fichaTecnicaSchema = z
     start_date: z.string().optional(),
     execution_term_days: z.coerce.number().int().min(0).optional(),
     planned_end_date: z.string().optional(),
-    status: z.enum(["draft", "active", "closing", "closed", "archived"]),
+    status: z.enum(["draft", "active", "closing", "closed", "archived", "cancelled"]),
   })
   .superRefine((values, ctx) => {
     const { start_date, planned_end_date, execution_term_days } = values;
