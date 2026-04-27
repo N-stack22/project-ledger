@@ -983,71 +983,380 @@ export function BudgetsPage() {
   );
 }
 
-export function MetradosPage() {
-  const { projects, budgetItems, metrados, refresh } = useWorkspace();
-  const { user } = useAuth();
-  const form = useForm<z.infer<typeof metradoSchema>>({ resolver: zodResolver(metradoSchema) });
-  const selectedProjectId = form.watch("project_id");
-  const projectItems = budgetItems.filter((item) => item.project_id === selectedProjectId);
+type MetradoLineRow = {
+  id: string;
+  item_id: string;
+  period_id: string | null;
+  group_label: string | null;
+  location_ref: string | null;
+  description: string | null;
+  num_elements: number | null;
+  length: number | null;
+  width: number | null;
+  height: number | null;
+  formula: string | null;
+  partial: number;
+  observation: string | null;
+  sort_order?: number | null;
+};
 
-  const submit = form.handleSubmit(async (values) => {
-    if (!user) return;
-    const { error } = await supabase.from("metrado_entries").insert({
-      ...values,
-      created_by: user.id,
-      period_month: toPeriodDate(values.period_month),
-      status: "draft",
-    });
-    if (error) {
-      form.setError("root", { message: error.message });
+type MetradoPeriod = {
+  id: string;
+  project_id: string;
+  period_number: number;
+  date_from: string;
+  date_to: string;
+};
+
+function computeLinePartialLocal(line: Partial<MetradoLineRow>): number {
+  const n = Number(line.num_elements ?? 1) || 1;
+  const l = line.length != null && line.length !== 0 ? Number(line.length) : 1;
+  const w = line.width != null && line.width !== 0 ? Number(line.width) : 1;
+  const h = line.height != null && line.height !== 0 ? Number(line.height) : 1;
+  const r = n * l * w * h;
+  return Math.round(r * 10000) / 10000;
+}
+
+/** Deriva el código padre a partir de un item_code tipo "01.02.03" -> "01.02". */
+function parentCodeOf(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const parts = code.trim().split(".");
+  if (parts.length <= 1) return null;
+  return parts.slice(0, -1).join(".");
+}
+
+export function MetradosPage() {
+  const { projects, budgetItems } = useWorkspace();
+  const { user } = useAuth();
+  const [projectId, setProjectId] = useState<string>("");
+  const [periods, setPeriods] = useState<MetradoPeriod[]>([]);
+  const [periodId, setPeriodId] = useState<string>("");
+  const [lines, setLines] = useState<MetradoLineRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const items = useMemo(
+    () =>
+      budgetItems
+        .filter((b) => b.project_id === projectId)
+        .slice()
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+    [budgetItems, projectId],
+  );
+
+  useEffect(() => {
+    if (!projectId) {
+      setPeriods([]);
+      setPeriodId("");
       return;
     }
-    form.reset();
-    await refresh();
-  });
+    void supabase
+      .from("valuation_periods")
+      .select("id,project_id,period_number,date_from,date_to")
+      .eq("project_id", projectId)
+      .order("period_number")
+      .then(({ data }) => {
+        const list = (data ?? []) as MetradoPeriod[];
+        setPeriods(list);
+        if (list.length) setPeriodId((curr) => curr || list[0].id);
+      });
+  }, [projectId]);
 
-  const validateEntry = async (id: string) => {
-    if (!user) return;
-    await supabase.from("metrado_entries").update({ status: "validated", validated_by: user.id, validated_at: new Date().toISOString() }).eq("id", id);
-    await refresh();
-  };
+  useEffect(() => {
+    if (!periodId) {
+      setLines([]);
+      return;
+    }
+    setLoading(true);
+    void supabase
+      .from("metrado_lines")
+      .select("*")
+      .eq("period_id", periodId)
+      .order("sort_order")
+      .then(({ data }) => {
+        setLines((data ?? []) as MetradoLineRow[]);
+        setLoading(false);
+      });
+  }, [periodId]);
+
+  const groupedItems = useMemo(() => {
+    type Group = { code: string; label: string; items: typeof items };
+    const map = new Map<string, Group>();
+    for (const it of items) {
+      const parent = parentCodeOf(it.item_code) ?? "—";
+      const parentItem = parent !== "—" ? items.find((p) => p.item_code === parent) : null;
+      const label = parentItem
+        ? `${parentItem.item_code} · ${parentItem.description}`
+        : parent === "—"
+        ? "Partidas raíz"
+        : `Partida ${parent}`;
+      if (!map.has(parent)) map.set(parent, { code: parent, label, items: [] });
+      map.get(parent)!.items.push(it);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.code.localeCompare(b.code, "es", { numeric: true }),
+    );
+  }, [items]);
+
+  async function addLine(itemId: string) {
+    if (!periodId || !user) return;
+    const sortOrder = lines.filter((l) => l.item_id === itemId).length + 1;
+    const { data, error } = await supabase
+      .from("metrado_lines")
+      .insert({
+        item_id: itemId,
+        period_id: periodId,
+        project_id: projectId,
+        sort_order: sortOrder,
+        num_elements: 1,
+        length: 0,
+        width: 0,
+        height: 0,
+        partial: 0,
+        created_by: user.id,
+      })
+      .select("*")
+      .single();
+    if (!error && data) setLines((l) => [...l, data as MetradoLineRow]);
+  }
+
+  async function updateLine(id: string, patch: Partial<MetradoLineRow>) {
+    const current = lines.find((l) => l.id === id);
+    if (!current) return;
+    const merged = { ...current, ...patch } as MetradoLineRow;
+    const partial = computeLinePartialLocal(merged);
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...merged, partial } : l)));
+    const { id: _ignoreId, period_id: _ignorePeriodId, ...safePatch } = patch as Record<string, unknown> & {
+      id?: string;
+      period_id?: string | null;
+    };
+    await supabase
+      .from("metrado_lines")
+      .update({ ...(safePatch as Record<string, unknown>), partial })
+      .eq("id", id);
+  }
+
+  async function deleteLine(id: string) {
+    setLines((prev) => prev.filter((l) => l.id !== id));
+    await supabase.from("metrado_lines").delete().eq("id", id);
+  }
+
+  const linesByItem = useMemo(() => {
+    const m = new Map<string, MetradoLineRow[]>();
+    for (const l of lines) {
+      if (!m.has(l.item_id)) m.set(l.item_id, []);
+      m.get(l.item_id)!.push(l);
+    }
+    return m;
+  }, [lines]);
 
   return (
     <AuthGuard>
-      <PageLayout title="Metrados" description="Registro continuo por partida y período, con validación técnica para valorización.">
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <Card>
-            <CardHeader><CardTitle>Registrar metrado</CardTitle></CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form className="space-y-4" onSubmit={submit}>
-                  <FormField control={form.control} name="project_id" render={({ field }) => <FormItem><FormLabel>Proyecto</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona proyecto" /></SelectTrigger></FormControl><SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
-                  <FormField control={form.control} name="item_id" render={({ field }) => <FormItem><FormLabel>Partida</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona partida" /></SelectTrigger></FormControl><SelectContent>{projectItems.map((item) => <SelectItem key={item.id} value={item.id}>{item.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
-                  <div className="grid gap-4 md:grid-cols-2"><FormField control={form.control} name="entry_date" render={({ field }) => <FormItem><FormLabel>Fecha</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} /><FormField control={form.control} name="period_month" render={({ field }) => <FormItem><FormLabel>Periodo</FormLabel><FormControl><Input type="month" {...field} /></FormControl><FormDescription>Se guarda el primer día del mes.</FormDescription><FormMessage /></FormItem>} /></div>
-                  <FormField control={form.control} name="quantity" render={({ field }) => <FormItem><FormLabel>Cantidad ejecutada</FormLabel><FormControl><Input type="number" step="0.0001" {...field} /></FormControl><FormMessage /></FormItem>} />
-                  <FormField control={form.control} name="notes" render={({ field }) => <FormItem><FormLabel>Observaciones</FormLabel><FormControl><Textarea {...field} value={field.value ?? ""} /></FormControl></FormItem>} />
-                  {form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}
-                  <Button type="submit">Guardar metrado</Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Histórico por período</CardTitle></CardHeader>
-            <CardContent>
-              <SectionTable
-                headers={["Fecha", "Periodo", "Cantidad", "Estado", "Acción"]}
-                rows={metrados.slice(0, 12).map((entry) => [
-                  formatDate(entry.entry_date),
-                  getPeriodLabel(entry.period_month),
-                  formatNumber(Number(entry.quantity), 4),
-                  <Badge key={entry.id} variant="outline">{entry.status}</Badge>,
-                  entry.status !== "validated" ? <Button key={entry.id} size="sm" variant="outline" onClick={() => void validateEntry(entry.id)}>Validar</Button> : "—",
-                ])}
-              />
-            </CardContent>
-          </Card>
-        </div>
+      <PageLayout
+        title="Metrados"
+        description="Metrados de partidas ejecutadas. Captura por partida con dimensiones (largo, ancho, alto), número de elementos, parcial y total."
+      >
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Selección de proyecto y período</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Proyecto</label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona proyecto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Período de valorización</label>
+              <Select value={periodId} onValueChange={setPeriodId} disabled={!projectId || !periods.length}>
+                <SelectTrigger>
+                  <SelectValue placeholder={periods.length ? "Selecciona período" : "Sin períodos creados"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {periods.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      Período {p.period_number} ({formatDate(p.date_from)} – {formatDate(p.date_to)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!periods.length && projectId ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Crea un período desde Memoria valorizada e Informe Técnico antes de capturar metrados.
+                </p>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        {projectId && periodId ? (
+          <div className="space-y-6">
+            {groupedItems.map((group) => (
+              <Card key={group.code}>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    <span className="text-xs uppercase tracking-wider text-muted-foreground">Partida principal</span>
+                    <div className="mt-1 font-semibold">{group.label}</div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {group.items.map((item) => {
+                    const itemLines = linesByItem.get(item.id) ?? [];
+                    const total = itemLines.reduce((acc, l) => acc + Number(l.partial || 0), 0);
+                    return (
+                      <div key={item.id} className="rounded-md border border-border">
+                        <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/40 px-4 py-3">
+                          <div className="min-w-0">
+                            <div className="text-xs text-muted-foreground">
+                              Subpartida de <span className="font-medium">{group.label}</span>
+                            </div>
+                            <div className="font-medium">
+                              <span className="mr-2 font-mono text-sm text-muted-foreground">
+                                {item.item_code ?? "—"}
+                              </span>
+                              {item.description}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Und: <span className="font-medium text-foreground">{item.unit}</span> · Meta:{" "}
+                              {formatNumber(Number(item.base_quantity), 4)}
+                            </div>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => addLine(item.id)}>
+                            + Agregar línea
+                          </Button>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[60px]">Ítem</TableHead>
+                                <TableHead className="min-w-[180px]">Descripción</TableHead>
+                                <TableHead className="w-[70px]">Und.</TableHead>
+                                <TableHead className="w-[90px]">Largo</TableHead>
+                                <TableHead className="w-[90px]">Ancho</TableHead>
+                                <TableHead className="w-[90px]">Alt.</TableHead>
+                                <TableHead className="w-[90px]">N° Elem.</TableHead>
+                                <TableHead className="w-[110px] text-right">Parcial</TableHead>
+                                <TableHead className="w-[60px]" />
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {itemLines.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
+                                    Sin líneas. Usa “+ Agregar línea” para iniciar el metrado de esta partida.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                itemLines.map((line, idx) => (
+                                  <TableRow key={line.id}>
+                                    <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
+                                    <TableCell>
+                                      <Input
+                                        value={line.description ?? ""}
+                                        placeholder="Ej. Tramo A, eje 1-3…"
+                                        onChange={(e) => updateLine(line.id, { description: e.target.value })}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="text-sm">{item.unit}</TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={line.length ?? 0}
+                                        onChange={(e) =>
+                                          updateLine(line.id, {
+                                            length: e.target.value === "" ? null : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={line.width ?? 0}
+                                        onChange={(e) =>
+                                          updateLine(line.id, {
+                                            width: e.target.value === "" ? null : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={line.height ?? 0}
+                                        onChange={(e) =>
+                                          updateLine(line.id, {
+                                            height: e.target.value === "" ? null : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        step="1"
+                                        value={line.num_elements ?? 1}
+                                        onChange={(e) =>
+                                          updateLine(line.id, {
+                                            num_elements: e.target.value === "" ? null : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">
+                                      {formatNumber(Number(line.partial || 0), 4)}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button size="sm" variant="ghost" onClick={() => void deleteLine(line.id)}>
+                                        ✕
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                              <TableRow className="bg-muted/30">
+                                <TableCell colSpan={7} className="text-right text-sm font-medium">
+                                  Total {item.unit}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-semibold">
+                                  {formatNumber(total, 4)}
+                                </TableCell>
+                                <TableCell />
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            ))}
+            {!groupedItems.length ? (
+              <p className="text-sm text-muted-foreground">
+                Este proyecto no tiene partidas en el presupuesto. Importa primero el presupuesto.
+              </p>
+            ) : null}
+            {loading ? <p className="text-sm text-muted-foreground">Cargando líneas…</p> : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Selecciona un proyecto y un período para capturar los metrados de partidas ejecutadas.
+          </p>
+        )}
       </PageLayout>
     </AuthGuard>
   );
