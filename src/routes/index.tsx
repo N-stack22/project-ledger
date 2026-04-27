@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  Crosshair,
   FileSpreadsheet,
   FileStack,
   Gauge,
@@ -13,6 +12,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -38,6 +38,7 @@ function Index() {
             <a href="#flujo" className="hover:text-foreground">Flujo</a>
           </nav>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button asChild variant="ghost" size="sm">
               <Link to="/login">Ingresar</Link>
             </Button>
@@ -62,8 +63,8 @@ function Index() {
           <span>build · stable</span>
         </div>
 
-        <div className="relative mx-auto grid max-w-7xl gap-12 px-6 py-20 md:py-28 lg:grid-cols-12 lg:gap-8">
-          <div className="space-y-8 lg:col-span-7">
+        <div className="relative mx-auto max-w-7xl px-6 py-20 md:py-28">
+          <div className="space-y-8 max-w-3xl">
             <div className="flex items-center gap-3">
               <span className="h-px w-10 bg-foreground" />
               <Badge
@@ -105,7 +106,7 @@ function Index() {
             </div>
 
             {/* Specs estilo ficha técnica */}
-            <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-sm border border-border bg-border text-xs">
+            <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-sm border border-border bg-border text-xs max-w-xl">
               {[
                 ["Módulos", "11"],
                 ["Reportes PDF", "Auto"],
@@ -119,45 +120,6 @@ function Index() {
                 </div>
               ))}
             </dl>
-          </div>
-
-          {/* Visual técnico tipo blueprint */}
-          <div className="relative lg:col-span-5">
-            <div className="relative aspect-square overflow-hidden rounded-sm border border-border bg-card">
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,oklch(1_0_0/0.06)_1px,transparent_1px),linear-gradient(to_bottom,oklch(1_0_0/0.06)_1px,transparent_1px)] bg-[size:24px_24px]" />
-              {/* Cruz de mira CAD */}
-              <Crosshair
-                className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 text-foreground/80"
-                strokeWidth={0.8}
-              />
-              {/* Etiquetas de medición */}
-              <div className="absolute left-4 top-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                X: 0.000 · Y: 0.000
-              </div>
-              <div className="absolute bottom-4 left-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Layer · METRADOS_EJEC
-              </div>
-              <div className="absolute bottom-4 right-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Scale 1 : 100
-              </div>
-              {/* Líneas dimensionales decorativas */}
-              <svg
-                className="absolute inset-0 h-full w-full text-foreground/30"
-                fill="none"
-                stroke="currentColor"
-              >
-                <line x1="40" y1="60" x2="40" y2="90%" strokeWidth="1" />
-                <line x1="40" y1="60" x2="90%" y2="60" strokeWidth="1" />
-                <line
-                  x1="40"
-                  y1="50%"
-                  x2="90%"
-                  y2="50%"
-                  strokeWidth="0.5"
-                  strokeDasharray="4 4"
-                />
-              </svg>
-            </div>
           </div>
         </div>
       </section>

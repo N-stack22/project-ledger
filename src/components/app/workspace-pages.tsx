@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { ThemeToggle as LoginThemeToggle } from "@/components/app/theme-toggle";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -243,6 +244,16 @@ export function LoginPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-background">
+      {/* Top-right controls */}
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-foreground backdrop-blur hover:bg-accent"
+        >
+          ← Volver a inicio
+        </Link>
+        <LoginThemeToggle />
+      </div>
       {/* Decorative background */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
