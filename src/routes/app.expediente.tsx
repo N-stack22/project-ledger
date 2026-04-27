@@ -448,7 +448,7 @@ function ExpedientePage() {
               <CardHeader>
                 <CardTitle>Memoria valorizada e informe técnico — Valorización N° {String(period.period_number).padStart(2, "0")}</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Documento narrativo del período {period.date_from} → {period.date_to}. Aquí solo se incluye la hoja resumen consolidada; las planillas detalladas se gestionan en el módulo Metrados.
+                  Documento narrativo del período {period.date_from} → {period.date_to}. Aquí solo se incluye el resumen consolidado; el sustento técnico se gestiona por separado en el módulo Metrados.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
