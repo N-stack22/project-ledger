@@ -1173,6 +1173,8 @@ export function BudgetsPage() {
       base_quantity: row.base_quantity,
       unit_price: row.unit_price,
       partial_amount: row.partial_amount,
+      hierarchy_level: row.hierarchy_level ?? null,
+      parent_item_code: row.parent_item_code ?? null,
       category: row.category || null,
       sort_order: index + 1,
     }));
