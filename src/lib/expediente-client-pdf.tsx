@@ -64,10 +64,9 @@ function validateExpedienteData(args: GenerateArgs) {
   if (!args.project.contract_amount || Number(args.project.contract_amount) <= 0)
     missing.push("Ficha técnica → Monto contractual");
   if (args.items.length === 0) missing.push("Presupuesto → No hay partidas registradas");
-  if (args.currentLines.length === 0) missing.push("Metrados → No hay metrados detallados del período");
   if (args.totals.current <= 0) missing.push("Valorización → Los metrados no generan valorización > 0");
   if (missing.length > 0) {
-    throw new Error("Falta información para generar el expediente:\n• " + missing.join("\n• "));
+    throw new Error("Falta información para generar la memoria e informe técnico:\n• " + missing.join("\n• "));
   }
 }
 
@@ -119,7 +118,7 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     sigLine: { borderTopWidth: 0.5, borderTopColor: COLORS.text, width: 180, paddingTop: 4, textAlign: "center", fontSize: 9 },
   });
 
-  const { project, period, currency, valTable, items, currentLines, deductions, totals: t, totalDeductions, netAmount } = args;
+  const { project, period, currency, valTable, deductions, totals: t, totalDeductions, netAmount } = args;
   const headerLabel = `${clean(project.name)}  |  Valorización N° ${String(period.period_number).padStart(2, "0")}  |  ${period.date_from} a ${period.date_to}`;
 
   type Col = { key: string; label: string; width: number; align?: "left" | "right" | "center" };
@@ -181,8 +180,8 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
 
   // ---------- Page 1: Cover ----------
   const Cover = h(Page, { size: "A4", style: styles.page } as any,
-    h(Text, { style: styles.coverTitle } as any, "EXPEDIENTE MENSUAL"),
-    h(Text, { style: styles.coverSub } as any, "SUPERVISIÓN / VALORIZACIÓN"),
+    h(Text, { style: styles.coverTitle } as any, "MEMORIA VALORIZADA"),
+    h(Text, { style: styles.coverSub } as any, "E INFORME TÉCNICO"),
     h(Text, { style: styles.coverProject } as any, clean(project.name)),
     h(Text, { style: styles.coverLine } as any, `Valorización N° ${String(period.period_number).padStart(2, "0")}`),
     h(Text, { style: styles.coverLine } as any, `Periodo: ${period.date_from} a ${period.date_to}`),
@@ -196,13 +195,10 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     h(Text, { style: styles.h1 } as any, "ÍNDICE"),
     h(View, { style: styles.h1Rule } as any),
     ...[
-      "1. Carta de presentación",
-      "2. Ficha técnica de obra",
-      "3. Memoria valorizada e informe técnico",
-      "4. Metrados ejecutados — Hoja resumen",
-      "5. Planillas de metrados por partida",
-      "6. Cuadro de valorización de obra",
-      "7. Resumen de valorización y deducciones",
+      "1. Ficha técnica de obra",
+      "2. Memoria valorizada e informe técnico",
+      "3. Resumen consolidado de metrados",
+      "4. Resumen económico y deducciones",
     ].map((t, i) => h(Text, { key: i, style: styles.p } as any, t)),
   );
 
