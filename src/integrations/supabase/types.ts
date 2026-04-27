@@ -118,8 +118,10 @@ export type Database = {
           category: string | null
           created_at: string
           description: string
+          hierarchy_level: number | null
           id: string
           item_code: string | null
+          parent_item_code: string | null
           partial_amount: number
           project_id: string
           sort_order: number
@@ -133,8 +135,10 @@ export type Database = {
           category?: string | null
           created_at?: string
           description: string
+          hierarchy_level?: number | null
           id?: string
           item_code?: string | null
+          parent_item_code?: string | null
           partial_amount?: number
           project_id: string
           sort_order?: number
@@ -148,8 +152,10 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string
+          hierarchy_level?: number | null
           id?: string
           item_code?: string | null
+          parent_item_code?: string | null
           partial_amount?: number
           project_id?: string
           sort_order?: number
