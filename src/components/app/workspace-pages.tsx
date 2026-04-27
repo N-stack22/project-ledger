@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { purgeProject } from "@/lib/projects.purge.functions";
 import { ThemeToggle as LoginThemeToggle } from "@/components/app/theme-toggle";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -493,14 +495,25 @@ function DeleteOrArchiveProjectDialog({
   project: EditableProject;
   onDone: () => Promise<void> | void;
 }) {
+  const { isAdmin } = useAuth();
+  const purgeProjectFn = useServerFn(purgeProject);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [movement, setMovement] = useState<ProjectMovementCheck | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [purgeMode, setPurgeMode] = useState(false);
+  const [purgeAck, setPurgeAck] = useState(false);
+  const [purgeCode, setPurgeCode] = useState("");
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPurgeMode(false);
+      setPurgeAck(false);
+      setPurgeCode("");
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     void checkProjectMovement(project.id)
@@ -546,6 +559,24 @@ function DeleteOrArchiveProjectDialog({
     await onDone();
   };
 
+  const handlePurge = async () => {
+    if (!confirm(
+      `ADVERTENCIA FINAL\n\nVas a PURGAR permanentemente "${project.code} · ${project.name}" y TODA su información asociada (presupuesto, metrados, memoria, valorizaciones, deducciones, documentos…). Esta acción NO se puede deshacer.\n\n¿Continuar?`,
+    )) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await purgeProjectFn({ data: { projectId: project.id, confirmCode: purgeCode } });
+      setOpen(false);
+      await onDone();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error al purgar el proyecto.";
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -555,7 +586,7 @@ function DeleteOrArchiveProjectDialog({
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Eliminar o archivar proyecto</DialogTitle>
+          <DialogTitle>{purgeMode ? "Purgar proyecto" : "Eliminar o archivar proyecto"}</DialogTitle>
           <DialogDescription>
             <span className="font-medium text-foreground">{project.code} · {project.name}</span>
           </DialogDescription>
@@ -567,7 +598,51 @@ function DeleteOrArchiveProjectDialog({
           <p className="text-sm text-destructive">{error}</p>
         ) : movement ? (
           <div className="space-y-4">
-            {isEmpty ? (
+            {purgeMode ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-destructive/60 bg-destructive/10 p-3 text-sm">
+                  <p className="font-semibold text-destructive">⚠ Acción irreversible</p>
+                  <p className="mt-1">
+                    Se eliminarán <span className="font-medium">el proyecto y TODOS sus registros relacionados</span>:
+                    ficha técnica, presupuesto, partidas, metrados, memoria valorizada, valorizaciones,
+                    deducciones, documentos y archivos. El sistema quedará como si el proyecto nunca hubiera existido.
+                  </p>
+                </div>
+                {totalMovement > 0 ? (
+                  <ul className="ml-4 list-disc space-y-1 text-xs text-muted-foreground">
+                    {(Object.keys(movement) as Array<keyof ProjectMovementCheck>)
+                      .filter((k) => movement[k] > 0)
+                      .map((k) => (
+                        <li key={k}>
+                          {movementLabels[k]}: <span className="font-medium text-foreground">{movement[k]}</span>
+                        </li>
+                      ))}
+                  </ul>
+                ) : null}
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={purgeAck}
+                    onChange={(e) => setPurgeAck(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>Entiendo que esta acción es <span className="font-medium">permanente e irreversible</span>.</span>
+                </label>
+                <div>
+                  <label className="text-sm">
+                    Para confirmar, escribe el código del proyecto:{" "}
+                    <span className="font-mono font-medium text-foreground">{project.code}</span>
+                  </label>
+                  <Input
+                    className="mt-1"
+                    value={purgeCode}
+                    onChange={(e) => setPurgeCode(e.target.value)}
+                    placeholder={project.code}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            ) : isEmpty ? (
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
                 Este proyecto <span className="font-medium text-foreground">no tiene información asociada</span>.
                 Puedes eliminarlo permanentemente.
@@ -575,8 +650,8 @@ function DeleteOrArchiveProjectDialog({
             ) : (
               <div className="space-y-2">
                 <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-                  Este proyecto tiene información registrada y <span className="font-medium">no puede eliminarse físicamente</span>.
-                  Para mantener trazabilidad, archívalo o cancélalo.
+                  Este proyecto tiene información registrada y <span className="font-medium">no puede eliminarse físicamente</span> con la acción estándar.
+                  Puedes archivarlo, cancelarlo o {isAdmin ? "purgarlo (admin)" : "solicitar a un administrador la purga total"}.
                 </div>
                 <ul className="ml-4 list-disc space-y-1 text-xs text-muted-foreground">
                   {(Object.keys(movement) as Array<keyof ProjectMovementCheck>)
@@ -593,36 +668,69 @@ function DeleteOrArchiveProjectDialog({
         ) : null}
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-            Cerrar
-          </Button>
-          {isEmpty ? (
-            <Button type="button" variant="destructive" onClick={handleDelete} disabled={busy}>
-              {busy ? "Eliminando…" : "Eliminar permanentemente"}
-            </Button>
-          ) : movement ? (
+          {purgeMode ? (
             <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleStatusChange("archived")}
-                disabled={busy || project.status === "archived"}
-              >
-                Archivar
+              <Button type="button" variant="ghost" onClick={() => setPurgeMode(false)} disabled={busy}>
+                Volver
               </Button>
               <Button
                 type="button"
                 variant="destructive"
-                onClick={() => handleStatusChange("cancelled")}
-                disabled={busy || project.status === "cancelled"}
+                onClick={handlePurge}
+                disabled={
+                  busy ||
+                  !purgeAck ||
+                  purgeCode.trim().toUpperCase() !== project.code.trim().toUpperCase()
+                }
               >
-                Cancelar proyecto
+                {busy ? "Purgando…" : "Purgar definitivamente"}
               </Button>
             </>
-          ) : null}
+          ) : (
+            <>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+                Cerrar
+              </Button>
+              {isEmpty ? (
+                <Button type="button" variant="destructive" onClick={handleDelete} disabled={busy}>
+                  {busy ? "Eliminando…" : "Eliminar permanentemente"}
+                </Button>
+              ) : movement ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleStatusChange("archived")}
+                    disabled={busy || project.status === "archived"}
+                  >
+                    Archivar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleStatusChange("cancelled")}
+                    disabled={busy || project.status === "cancelled"}
+                  >
+                    Cancelar proyecto
+                  </Button>
+                  {isAdmin ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setPurgeMode(true)}
+                      disabled={busy}
+                    >
+                      Purgar (admin)
+                    </Button>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
   );
 }
 
