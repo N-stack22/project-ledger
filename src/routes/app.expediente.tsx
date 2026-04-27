@@ -404,8 +404,40 @@ function ExpedientePage() {
         </Card>
       )}
 
-      {/* Step 2: Memoria valorizada e informe técnico */}
-      {step === 2 && period && project && (() => {
+      {/* Step 2: Ficha técnica */}
+      {step === 2 && project && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ficha técnica del proyecto</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Datos generales que identifican la obra dentro de la memoria valorizada e informe técnico.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+              <FichaDato label="Entidad" value={project.entity_name} />
+              <FichaDato label="Contratista" value={project.contractor_name} />
+              <FichaDato label="Supervisor" value={project.supervisor_name} />
+              <FichaDato label="Residente" value={project.resident_name} />
+              <FichaDato label="Modalidad de ejecución" value={project.execution_modality} />
+              <FichaDato label="Contrato de ejecución" value={project.execution_contract} />
+              <FichaDato label="Contrato de supervisión" value={project.supervision_contract} />
+              <FichaDato label="Monto contractual" value={formatMoney(Number(project.contract_amount || 0), currency)} />
+            </div>
+            {isFichaTecnicaIncomplete(project) && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                La ficha técnica está incompleta. Completa los datos generales del proyecto antes de generar el PDF.
+                <Button asChild size="sm" variant="secondary" className="mt-3 block w-fit">
+                  <Link to="/app/projects">Completar ficha técnica</Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: Memoria valorizada e informe técnico */}
+      {step === 3 && period && project && (() => {
         const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
         const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
         const baseTotal = valTable.reduce((s, r) => s + Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0), 0);
@@ -417,7 +449,7 @@ function ExpedientePage() {
               <CardHeader>
                 <CardTitle>Memoria valorizada e informe técnico — Valorización N° {String(period.period_number).padStart(2, "0")}</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Documento narrativo del período {period.date_from} → {period.date_to}. Aquí solo se incluye la hoja resumen consolidada; las planillas detalladas se editan en el paso siguiente.
+                  Documento narrativo del período {period.date_from} → {period.date_to}. Aquí solo se incluye la hoja resumen consolidada; las planillas detalladas se gestionan en el módulo Metrados.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -488,7 +520,7 @@ function ExpedientePage() {
               <CardHeader>
                 <CardTitle>Hoja resumen de metrados avanzados hasta la valorización</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Resumen consolidado de partidas ejecutadas. Para registrar o editar el detalle (referencias, dimensiones, fórmulas), usa el paso <strong>Metrados de partidas ejecutadas</strong>.
+                  Resumen consolidado de partidas ejecutadas. El detalle de metrados se registra por separado en el módulo Metrados.
                 </p>
               </CardHeader>
               <CardContent>
@@ -506,7 +538,7 @@ function ExpedientePage() {
                     <TableBody>
                       {summaryRows.length === 0 && (
                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                          Aún no hay partidas ejecutadas. Regístralas en el paso <strong>Metrados de partidas ejecutadas</strong>.
+                          Aún no hay partidas ejecutadas. Regístralas en el módulo Metrados.
                         </TableCell></TableRow>
                       )}
                       {summaryRows.map((r) => (
