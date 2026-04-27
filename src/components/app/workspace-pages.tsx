@@ -972,7 +972,10 @@ export function ProjectsPage() {
                 <Badge key={`f-${project.id}`} variant={incomplete ? "destructive" : "secondary"}>
                   {incomplete ? "Incompleta" : "Completa"}
                 </Badge>,
-                <EditProjectDialog key={`e-${project.id}`} project={project} onSaved={refresh} />,
+                <div key={`a-${project.id}`} className="flex flex-wrap gap-2">
+                  <EditProjectDialog project={project} onSaved={refresh} />
+                  <DeleteOrArchiveProjectDialog project={project} onDone={refresh} />
+                </div>,
               ];
             })}
           />
