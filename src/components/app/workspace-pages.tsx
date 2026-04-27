@@ -934,6 +934,16 @@ export function ProjectsPage() {
   const { projects, refresh } = useWorkspace();
   const { user, roles } = useAuth();
   const [open, setOpen] = useState(false);
+  const [purgedProjectIds, setPurgedProjectIds] = useState<Set<string>>(() => new Set());
+  const visibleProjects = useMemo(
+    () => projects.filter((project) => !purgedProjectIds.has(project.id)),
+    [projects, purgedProjectIds],
+  );
+
+  const refreshProjectsAfterRemoval = async (projectId: string) => {
+    setPurgedProjectIds((current) => new Set(current).add(projectId));
+    await refresh();
+  };
   const form = useForm<z.infer<typeof projectSchema>>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -1082,7 +1092,7 @@ export function ProjectsPage() {
             </CardHeader>
           </Card>
         ) : null}
-        {projects.length === 0 ? (
+        {visibleProjects.length === 0 ? (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Aún no hay proyectos registrados</CardTitle>
@@ -1094,7 +1104,7 @@ export function ProjectsPage() {
         ) : (
           <SectionTable
             headers={["Código", "Proyecto", "Cliente", "Ubicación", "Contrato", "Monto", "Estado", "Ficha técnica", "Acciones"]}
-            rows={projects.map((project) => {
+            rows={visibleProjects.map((project) => {
               const incomplete = isFichaTecnicaIncomplete(project);
               return [
                 project.code,
@@ -1109,7 +1119,10 @@ export function ProjectsPage() {
                 </Badge>,
                 <div key={`a-${project.id}`} className="flex flex-wrap gap-2">
                   <EditProjectDialog project={project} onSaved={refresh} />
-                  <DeleteOrArchiveProjectDialog project={project} onDone={refresh} />
+                  <DeleteOrArchiveProjectDialog
+                    project={project}
+                    onDone={(result) => result?.removed ? refreshProjectsAfterRemoval(project.id) : refresh()}
+                  />
                 </div>,
               ];
             })}
