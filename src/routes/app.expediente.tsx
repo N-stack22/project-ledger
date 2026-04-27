@@ -16,6 +16,7 @@ import { useWorkspace } from "@/components/app/workspace-provider";
 import { isFichaTecnicaIncomplete } from "@/components/app/workspace-pages";
 import { useAuth } from "@/lib/auth";
 import {
+  buildSummaryHierarchy,
   buildValuationTable,
   deductionLabels,
   formatMoney,
@@ -440,6 +441,7 @@ function ExpedientePage() {
         const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
         const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
         const baseTotal = valTable.reduce((s, r) => s + Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0), 0);
+        const summaryHierarchy = buildSummaryHierarchy(valTable);
         const pctEjecutado = baseTotal > 0 ? (t.accum / baseTotal) * 100 : 0;
         const projectLocation = [project.district, project.province, project.department].filter(Boolean).join(", ") || "—";
         return (
@@ -527,31 +529,36 @@ function ExpedientePage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40">
-                        <TableHead className="w-[120px]">Partida</TableHead>
+                        <TableHead className="w-[120px]">Ítem</TableHead>
                         <TableHead>Descripción</TableHead>
-                        <TableHead className="w-[80px]">Unidad</TableHead>
-                        <TableHead className="w-[120px] text-right">Total ejecutado</TableHead>
-                        <TableHead className="w-[140px] text-right">Importe</TableHead>
+                        <TableHead className="w-[80px]">Und.</TableHead>
+                        <TableHead className="w-[120px] text-right">TOTAL</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {summaryRows.length === 0 && (
-                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                      {summaryHierarchy.length === 0 && (
+                        <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">
                           Aún no hay partidas ejecutadas. Regístralas en el módulo Metrados.
                         </TableCell></TableRow>
                       )}
-                      {summaryRows.map((r) => (
-                        <TableRow key={r.item.id}>
-                          <TableCell className="font-mono text-xs">{r.item.item_code}</TableCell>
-                          <TableCell>{r.item.description}</TableCell>
-                          <TableCell className="text-xs">{r.item.unit}</TableCell>
-                          <TableCell className="text-right font-mono">{formatNum(r.qtyCurrent, 2)}</TableCell>
-                          <TableCell className="text-right font-mono">{formatMoney(r.amountCurrent, currency)}</TableCell>
+                      {summaryHierarchy.map((r) => (
+                        <TableRow key={r.key} className={r.isLeaf ? "" : "bg-muted/20"}>
+                          <TableCell className="font-mono text-xs align-top">{r.code}</TableCell>
+                          <TableCell
+                            className={r.isLeaf ? "" : "font-semibold uppercase text-xs"}
+                            style={{ paddingLeft: 8 + r.level * 16 }}
+                          >
+                            {r.description || <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="text-xs">{r.isLeaf ? r.unit : ""}</TableCell>
+                          <TableCell className="text-right font-mono">
+                            {r.isLeaf && r.total != null ? formatNum(r.total, 2) : ""}
+                          </TableCell>
                         </TableRow>
                       ))}
-                      {summaryRows.length > 0 && (
+                      {summaryHierarchy.length > 0 && (
                         <TableRow className="bg-muted/40 font-semibold">
-                          <TableCell colSpan={4} className="text-right">Subtotal del período</TableCell>
+                          <TableCell colSpan={3} className="text-right">Importe valorizado del período</TableCell>
                           <TableCell className="text-right font-mono">{formatMoney(summaryTotal, currency)}</TableCell>
                         </TableRow>
                       )}

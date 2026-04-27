@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { BudgetItemRow, ProjectRow } from "@/lib/domain";
 import {
+  buildSummaryHierarchy,
   deductionLabels,
   formatMoney,
   formatNum,
@@ -255,19 +256,19 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
   // ---------- Page 5: Hoja resumen de metrados (portrait) ----------
   // Available width portrait A4 ≈ 595 - 64 = 531 pt. We'll work in pt.
   const resumenCols: Col[] = [
-    { key: "code", label: "Ítem", width: 55 },
-    { key: "desc", label: "Descripción", width: 320 },
+    { key: "code", label: "Ítem", width: 70 },
+    { key: "desc", label: "Descripción", width: 305 },
     { key: "und", label: "Und.", width: 50, align: "center" },
-    { key: "qty", label: "Metrado actual", width: 106, align: "right" },
+    { key: "qty", label: "TOTAL", width: 106, align: "right" },
   ];
-  const resumenRows = valTable
-    .filter((r) => r.qtyCurrent > 0)
-    .map((r) => ({
-      code: r.item.item_code || "—",
-      desc: r.item.description,
-      und: r.item.unit,
-      qty: formatNum(r.qtyCurrent, 2),
-    }));
+  const hierarchy = buildSummaryHierarchy(valTable);
+  const resumenRows = hierarchy.map((r) => ({
+    code: r.code,
+    // Indentación visual con espacios no separables
+    desc: `${"\u00A0\u00A0".repeat(r.level)}${r.description || ""}`,
+    und: r.isLeaf ? r.unit : "",
+    qty: r.isLeaf && r.total != null ? formatNum(r.total, 2) : "",
+  }));
 
   const ResumenPage = h(Page, { size: "A4", style: styles.page } as any,
     PageHeader(),

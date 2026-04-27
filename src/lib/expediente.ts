@@ -145,6 +145,92 @@ export function totals(rows: ValuationItemSummary[]) {
   );
 }
 
+export type SummaryHierarchyRow = {
+  key: string;
+  code: string;
+  description: string;
+  unit: string;
+  level: number;
+  isLeaf: boolean;
+  total: number | null; // null para padres sin datos propios
+  itemId: string | null;
+};
+
+/**
+ * Construye la hoja resumen jerárquica de metrados.
+ * - Incluye los niveles padre (01, 03.02, 03.02.01...) aunque no tengan datos.
+ * - Solo los nodos hoja con metrado > 0 muestran TOTAL.
+ * - Si el padre no existe como partida importada, se sintetiza con solo el código.
+ */
+export function buildSummaryHierarchy(rows: ValuationItemSummary[]): SummaryHierarchyRow[] {
+  // Indexar partidas por código
+  const byCode = new Map<string, ValuationItemSummary>();
+  for (const r of rows) {
+    const code = (r.item.item_code ?? "").trim();
+    if (code) byCode.set(code, r);
+  }
+
+  // Hojas con datos del período
+  const leaves = rows
+    .filter((r) => (r.item.item_code ?? "").trim() && r.qtyCurrent > 0)
+    .sort((a, b) => compareCodes(a.item.item_code!, b.item.item_code!));
+
+  const out: SummaryHierarchyRow[] = [];
+  const seen = new Set<string>();
+
+  for (const leaf of leaves) {
+    const code = leaf.item.item_code!.trim();
+    const parts = code.split(".");
+    // Emitir ancestros en orden
+    for (let i = 1; i < parts.length; i++) {
+      const ancestorCode = parts.slice(0, i).join(".");
+      if (seen.has(ancestorCode)) continue;
+      seen.add(ancestorCode);
+      const parent = byCode.get(ancestorCode);
+      out.push({
+        key: ancestorCode,
+        code: ancestorCode,
+        description: parent?.item.description ?? "",
+        unit: parent?.item.unit ?? "",
+        level: i - 1,
+        isLeaf: false,
+        total: null,
+        itemId: parent?.item.id ?? null,
+      });
+    }
+    // Emitir hoja
+    if (!seen.has(code)) {
+      seen.add(code);
+      out.push({
+        key: code,
+        code,
+        description: leaf.item.description,
+        unit: leaf.item.unit,
+        level: parts.length - 1,
+        isLeaf: true,
+        total: leaf.qtyCurrent,
+        itemId: leaf.item.id,
+      });
+    }
+  }
+  return out;
+}
+
+function compareCodes(a: string, b: string): number {
+  const pa = a.split(".");
+  const pb = b.split(".");
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = Number(pa[i] ?? "0");
+    const nb = Number(pb[i] ?? "0");
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+    const sa = pa[i] ?? "";
+    const sb = pb[i] ?? "";
+    if (sa !== sb) return sa < sb ? -1 : 1;
+  }
+  return 0;
+}
+
 export function formatNum(n: number, d = 2) {
   return new Intl.NumberFormat("es-PE", { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 }
