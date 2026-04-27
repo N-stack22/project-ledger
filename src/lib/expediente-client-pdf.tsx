@@ -64,10 +64,9 @@ function validateExpedienteData(args: GenerateArgs) {
   if (!args.project.contract_amount || Number(args.project.contract_amount) <= 0)
     missing.push("Ficha técnica → Monto contractual");
   if (args.items.length === 0) missing.push("Presupuesto → No hay partidas registradas");
-  if (args.currentLines.length === 0) missing.push("Metrados → No hay metrados detallados del período");
   if (args.totals.current <= 0) missing.push("Valorización → Los metrados no generan valorización > 0");
   if (missing.length > 0) {
-    throw new Error("Falta información para generar el expediente:\n• " + missing.join("\n• "));
+    throw new Error("Falta información para generar la memoria e informe técnico:\n• " + missing.join("\n• "));
   }
 }
 
@@ -119,7 +118,7 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     sigLine: { borderTopWidth: 0.5, borderTopColor: COLORS.text, width: 180, paddingTop: 4, textAlign: "center", fontSize: 9 },
   });
 
-  const { project, period, currency, valTable, items, currentLines, deductions, totals: t, totalDeductions, netAmount } = args;
+  const { project, period, currency, valTable, deductions, totals: t, totalDeductions, netAmount } = args;
   const headerLabel = `${clean(project.name)}  |  Valorización N° ${String(period.period_number).padStart(2, "0")}  |  ${period.date_from} a ${period.date_to}`;
 
   type Col = { key: string; label: string; width: number; align?: "left" | "right" | "center" };
@@ -181,8 +180,8 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
 
   // ---------- Page 1: Cover ----------
   const Cover = h(Page, { size: "A4", style: styles.page } as any,
-    h(Text, { style: styles.coverTitle } as any, "EXPEDIENTE MENSUAL"),
-    h(Text, { style: styles.coverSub } as any, "SUPERVISIÓN / VALORIZACIÓN"),
+    h(Text, { style: styles.coverTitle } as any, "MEMORIA VALORIZADA"),
+    h(Text, { style: styles.coverSub } as any, "E INFORME TÉCNICO"),
     h(Text, { style: styles.coverProject } as any, clean(project.name)),
     h(Text, { style: styles.coverLine } as any, `Valorización N° ${String(period.period_number).padStart(2, "0")}`),
     h(Text, { style: styles.coverLine } as any, `Periodo: ${period.date_from} a ${period.date_to}`),
@@ -196,13 +195,10 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     h(Text, { style: styles.h1 } as any, "ÍNDICE"),
     h(View, { style: styles.h1Rule } as any),
     ...[
-      "1. Carta de presentación",
-      "2. Ficha técnica de obra",
-      "3. Memoria valorizada e informe técnico",
-      "4. Metrados ejecutados — Hoja resumen",
-      "5. Planillas de metrados por partida",
-      "6. Cuadro de valorización de obra",
-      "7. Resumen de valorización y deducciones",
+      "1. Ficha técnica de obra",
+      "2. Memoria valorizada e informe técnico",
+      "3. Resumen consolidado de metrados",
+      "4. Resumen económico y deducciones",
     ].map((t, i) => h(Text, { key: i, style: styles.p } as any, t)),
   );
 
@@ -282,106 +278,7 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
       : Table({ cols: resumenCols, rows: resumenRows }),
   );
 
-  // ---------- Page 6: Planillas por partida (portrait) ----------
-  const planillaCols: Col[] = [
-    { key: "loc", label: "Ubicación", width: 90 },
-    { key: "desc", label: "Descripción", width: 145 },
-    { key: "n", label: "N°", width: 38, align: "right" },
-    { key: "l", label: "Largo", width: 48, align: "right" },
-    { key: "a", label: "Ancho", width: 48, align: "right" },
-    { key: "h", label: "Alto", width: 48, align: "right" },
-    { key: "p", label: "Parcial", width: 60, align: "right" },
-  ]; // sum: 477 — fits portrait content width (~531)
-
-  const itemById = new Map(items.map((it) => [it.id, it]));
-  const linesByItem = new Map<string, MetradoLine[]>();
-  for (const line of currentLines) {
-    const list = linesByItem.get(line.item_id) ?? [];
-    list.push(line);
-    linesByItem.set(line.item_id, list);
-  }
-
-  const planillaSections: any[] = [];
-  for (const [itemId, lines] of linesByItem.entries()) {
-    const it = itemById.get(itemId);
-    if (!it) continue;
-    const subtotal = lines.reduce((s, l) => s + Number(l.partial || 0), 0);
-    const rows = lines.map((l) => ({
-      loc: [l.group_label, l.location_ref].filter(Boolean).join(" / ") || "—",
-      desc: l.description || "—",
-      n: formatNum(Number(l.num_elements ?? 1), 2),
-      l: l.length != null ? formatNum(Number(l.length), 2) : "—",
-      a: l.width != null ? formatNum(Number(l.width), 2) : "—",
-      h: l.height != null ? formatNum(Number(l.height), 2) : "—",
-      p: formatNum(Number(l.partial), 2),
-    }));
-    planillaSections.push(
-      h(View, { key: `pl-${itemId}`, wrap: true, style: { marginBottom: 10 } } as any,
-        h(Text, { style: styles.h2 } as any, `${it.item_code || ""} ${it.description}  (${it.unit})`),
-        Table({
-          cols: planillaCols,
-          rows,
-          totalRow: { loc: "", desc: "", n: "", l: "", a: "", h: "TOTAL", p: formatNum(subtotal, 2) },
-        }),
-      )
-    );
-  }
-
-  const PlanillasPage = h(Page, { size: "A4", style: styles.page } as any,
-    PageHeader(),
-    h(Text, { style: styles.h1 } as any, "PLANILLAS DE METRADOS POR PARTIDA"),
-    h(View, { style: styles.h1Rule } as any),
-    ...(planillaSections.length === 0
-      ? [h(Text, { style: styles.p, key: "empty" } as any, "Sin planillas registradas.")]
-      : planillaSections),
-  );
-
-  // ---------- Page 7: Cuadro de valorización (landscape) ----------
-  // Landscape A4 content ≈ 842 - 48 = 794 pt
-  const valCols: Col[] = [
-    { key: "code", label: "Ítem", width: 50 },
-    { key: "desc", label: "Descripción", width: 220 },
-    { key: "und", label: "Und.", width: 36, align: "center" },
-    { key: "meta", label: "Meta", width: 55, align: "right" },
-    { key: "ant", label: "Ant.", width: 55, align: "right" },
-    { key: "act", label: "Actual", width: 55, align: "right" },
-    { key: "acu", label: "Acum.", width: 55, align: "right" },
-    { key: "amt", label: "Monto actual", width: 90, align: "right" },
-    { key: "pct", label: "% acum.", width: 50, align: "right" },
-    { key: "sal", label: "Saldo", width: 55, align: "right" },
-  ]; // sum = 721 pt
-  const valRows = valTable.map((r) => ({
-    code: r.item.item_code || "—",
-    desc: r.item.description,
-    und: r.item.unit,
-    meta: formatNum(Number(r.item.base_quantity), 2),
-    ant: formatNum(r.qtyPrev, 2),
-    act: formatNum(r.qtyCurrent, 2),
-    acu: formatNum(r.qtyAccum, 2),
-    amt: formatMoney(r.amountCurrent, currency),
-    pct: `${formatNum(r.pctAccum, 1)}%`,
-    sal: formatNum(r.qtyBalance, 2),
-  }));
-  const valTotal = {
-    code: "", desc: "TOTALES", und: "", meta: "", ant: formatMoney(t.prev, currency),
-    act: formatMoney(t.current, currency), acu: formatMoney(t.accum, currency),
-    amt: formatMoney(t.current, currency), pct: "", sal: formatMoney(t.balance, currency),
-  };
-
-  const CuadroPage = h(Page, { size: "A4", orientation: "landscape", style: styles.pageLandscape } as any,
-    h(View, { style: [styles.header, { left: 24, right: 24 }] as any, fixed: true } as any,
-      h(Text, null, headerLabel),
-    ),
-    h(Text, {
-      style: [styles.footer, { left: 24, right: 24 }] as any, fixed: true,
-      render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => `Pág. ${pageNumber} / ${totalPages}`,
-    } as any),
-    h(Text, { style: styles.h1 } as any, "CUADRO DE VALORIZACIÓN DE OBRA"),
-    h(View, { style: styles.h1Rule } as any),
-    Table({ cols: valCols, rows: valRows, totalRow: valTotal }),
-  );
-
-  // ---------- Page 8: Resumen y deducciones ----------
+  // ---------- Page 6: Resumen y deducciones ----------
   const dedCols: Col[] = [
     { key: "concepto", label: "Concepto", width: 380 },
     { key: "monto", label: "Monto", width: 151, align: "right" },
@@ -420,10 +317,10 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     ),
   );
 
-  const doc = h(Document, null, Cover, Index, Ficha, Memoria, ResumenPage, PlanillasPage, CuadroPage, ResumenFinalPage);
+  const doc = h(Document, null, Cover, Index, Ficha, Memoria, ResumenPage, ResumenFinalPage);
   const blob = await pdf(doc as any).toBlob();
   const safeCode = clean(project.code).replace(/[^a-zA-Z0-9_-]+/g, "-");
-  const fileName = `expediente-${safeCode}-val${String(period.period_number).padStart(2, "0")}.pdf`;
+  const fileName = `memoria-informe-${safeCode}-val${String(period.period_number).padStart(2, "0")}.pdf`;
   const url = URL.createObjectURL(blob);
   return { fileName, url, blob };
 }

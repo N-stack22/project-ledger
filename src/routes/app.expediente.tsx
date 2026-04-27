@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageLayout } from "@/components/app/page-layout";
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/components/app/workspace-provider";
@@ -18,7 +17,6 @@ import { isFichaTecnicaIncomplete } from "@/components/app/workspace-pages";
 import { useAuth } from "@/lib/auth";
 import {
   buildValuationTable,
-  computeLinePartial,
   deductionLabels,
   formatMoney,
   formatNum,
@@ -48,8 +46,8 @@ type Period = {
 
 const STEPS = [
   { id: 1, label: "Proyecto y período" },
-  { id: 2, label: "Memoria valorizada e informe técnico" },
-  { id: 3, label: "Metrados de partidas ejecutadas" },
+  { id: 2, label: "Ficha técnica" },
+  { id: 3, label: "Memoria valorizada e informe técnico" },
   { id: 4, label: "Deducciones" },
   { id: 5, label: "Resumen y PDF" },
 ] as const;
@@ -67,7 +65,6 @@ function ExpedientePage() {
   const [generating, setGenerating] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const project = projects.find((p) => p.id === projectId);
   const period = periods.find((p) => p.id === periodId);
@@ -224,40 +221,6 @@ function ExpedientePage() {
     return true;
   }
 
-  async function addLine(itemId: string) {
-    if (!periodId || !projectId || !user) return;
-    const partial = computeLinePartial({ num_elements: 1 });
-    const { data, error } = await supabase
-      .from("metrado_lines")
-      .insert({
-        project_id: projectId,
-        period_id: periodId,
-        item_id: itemId,
-        num_elements: 1,
-        partial,
-        sort_order: lines.length,
-        created_by: user.id,
-      })
-      .select("*")
-      .single();
-    if (error) return toast.error(error.message);
-    setLines((l) => [...l, data as MetradoLine]);
-  }
-
-  async function updateLine(id: string, patch: Partial<MetradoLine>) {
-    const updated = lines.map((l) => (l.id === id ? { ...l, ...patch } : l));
-    const target = updated.find((l) => l.id === id)!;
-    const partial = computeLinePartial(target);
-    const final = { ...target, partial };
-    setLines(updated.map((l) => (l.id === id ? final : l)));
-    await supabase.from("metrado_lines").update({ ...patch, partial }).eq("id", id);
-  }
-
-  async function removeLine(id: string) {
-    setLines((l) => l.filter((x) => x.id !== id));
-    await supabase.from("metrado_lines").delete().eq("id", id);
-  }
-
   async function saveNarrative(patch: Partial<Period>) {
     if (!periodId) return;
     setPeriods((ps) => ps.map((p) => (p.id === periodId ? { ...p, ...patch } : p)));
@@ -304,7 +267,7 @@ function ExpedientePage() {
 
     setGenerating(true);
     setGenerationError(null);
-    const tid = toast.loading("Generando expediente PDF...");
+    const tid = toast.loading("Generando memoria e informe técnico PDF...");
 
     try {
       const res = await generateExpedienteClientPdf({
@@ -323,7 +286,7 @@ function ExpedientePage() {
       toast.dismiss(tid);
       if (lastUrl) URL.revokeObjectURL(lastUrl);
       setLastUrl(res.url);
-      toast.success("Expediente generado correctamente");
+      toast.success("Memoria e informe técnico generados correctamente");
 
       const link = document.createElement("a");
       link.href = res.url;
@@ -336,7 +299,7 @@ function ExpedientePage() {
     } catch (e: any) {
       toast.dismiss(tid);
       const msg = e?.message ?? "Error desconocido al generar el PDF";
-      console.error("[Expediente] generatePdf failed", e);
+      console.error("[MemoriaInforme] generatePdf failed", e);
       setGenerationError(msg);
       toast.error(msg, { duration: 12000, style: { whiteSpace: "pre-line" } });
     } finally {
@@ -346,8 +309,8 @@ function ExpedientePage() {
 
   return (
     <PageLayout
-      title="Expediente Mensual de Supervisión"
-      description="Asistente del expediente: ficha técnica, memoria valorizada, metrados, valorización y PDF."
+      title="Memoria valorizada e Informe Técnico"
+      description="Asistente para completar la ficha técnica y la memoria valorizada e informe técnico."
     >
       {/* Stepper */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -440,8 +403,40 @@ function ExpedientePage() {
         </Card>
       )}
 
-      {/* Step 2: Memoria valorizada e informe técnico */}
-      {step === 2 && period && project && (() => {
+      {/* Step 2: Ficha técnica */}
+      {step === 2 && project && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ficha técnica del proyecto</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Datos generales que identifican la obra dentro de la memoria valorizada e informe técnico.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+              <FichaDato label="Entidad" value={project.entity_name} />
+              <FichaDato label="Contratista" value={project.contractor_name} />
+              <FichaDato label="Supervisor" value={project.supervisor_name} />
+              <FichaDato label="Residente" value={project.resident_name} />
+              <FichaDato label="Modalidad de ejecución" value={project.execution_modality} />
+              <FichaDato label="Contrato de ejecución" value={project.execution_contract} />
+              <FichaDato label="Contrato de supervisión" value={project.supervision_contract} />
+              <FichaDato label="Monto contractual" value={formatMoney(Number(project.contract_amount || 0), currency)} />
+            </div>
+            {isFichaTecnicaIncomplete(project) && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                La ficha técnica está incompleta. Completa los datos generales del proyecto antes de generar el PDF.
+                <Button asChild size="sm" variant="secondary" className="mt-3 block w-fit">
+                  <Link to="/app/projects">Completar ficha técnica</Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: Memoria valorizada e informe técnico */}
+      {step === 3 && period && project && (() => {
         const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
         const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
         const baseTotal = valTable.reduce((s, r) => s + Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0), 0);
@@ -453,7 +448,7 @@ function ExpedientePage() {
               <CardHeader>
                 <CardTitle>Memoria valorizada e informe técnico — Valorización N° {String(period.period_number).padStart(2, "0")}</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Documento narrativo del período {period.date_from} → {period.date_to}. Aquí solo se incluye la hoja resumen consolidada; las planillas detalladas se editan en el paso siguiente.
+                  Documento narrativo del período {period.date_from} → {period.date_to}. Aquí solo se incluye el resumen consolidado; el sustento técnico se gestiona por separado en el módulo Metrados.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -524,7 +519,7 @@ function ExpedientePage() {
               <CardHeader>
                 <CardTitle>Hoja resumen de metrados avanzados hasta la valorización</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Resumen consolidado de partidas ejecutadas. Para registrar o editar el detalle (referencias, dimensiones, fórmulas), usa el paso <strong>Metrados de partidas ejecutadas</strong>.
+                  Resumen consolidado de partidas ejecutadas. El detalle de metrados se registra por separado en el módulo Metrados.
                 </p>
               </CardHeader>
               <CardContent>
@@ -542,7 +537,7 @@ function ExpedientePage() {
                     <TableBody>
                       {summaryRows.length === 0 && (
                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                          Aún no hay partidas ejecutadas. Regístralas en el paso <strong>Metrados de partidas ejecutadas</strong>.
+                          Aún no hay partidas ejecutadas. Regístralas en el módulo Metrados.
                         </TableCell></TableRow>
                       )}
                       {summaryRows.map((r) => (
@@ -568,167 +563,6 @@ function ExpedientePage() {
           </div>
         );
       })()}
-
-      {/* Step 3: Metrados de partidas ejecutadas (hoja resumen + planillas detalladas) */}
-      {step === 3 && period && (() => {
-        const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
-        const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
-        return (
-          <div className="space-y-4">
-            {/* A. Hoja resumen consolidada */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Hoja resumen de metrados — Valorización N° {period.period_number}</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Consolidado del período {period.date_from} → {period.date_to}. Los totales se calculan automáticamente desde las planillas detalladas de abajo.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="overflow-x-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/40">
-                        <TableHead className="w-[120px]">Partida</TableHead>
-                        <TableHead>Descripción</TableHead>
-                        <TableHead className="w-[80px]">Unidad</TableHead>
-                        <TableHead className="w-[120px] text-right">Total ejecutado</TableHead>
-                        <TableHead className="w-[140px] text-right">Importe</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {summaryRows.length === 0 && (
-                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                          Aún no hay partidas ejecutadas. Agrega planillas detalladas en la sección inferior.
-                        </TableCell></TableRow>
-                      )}
-                      {summaryRows.map((r) => (
-                        <TableRow key={r.item.id}>
-                          <TableCell className="font-mono text-xs">{r.item.item_code}</TableCell>
-                          <TableCell>{r.item.description}</TableCell>
-                          <TableCell className="text-xs">{r.item.unit}</TableCell>
-                          <TableCell className="text-right font-mono">{formatNum(r.qtyCurrent, 2)}</TableCell>
-                          <TableCell className="text-right font-mono">{formatMoney(r.amountCurrent, currency)}</TableCell>
-                        </TableRow>
-                      ))}
-                      {summaryRows.length > 0 && (
-                        <TableRow className="bg-muted/40 font-semibold">
-                          <TableCell colSpan={4} className="text-right">Subtotal del período</TableCell>
-                          <TableCell className="text-right font-mono">{formatMoney(summaryTotal, currency)}</TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* B. Planillas detalladas (sustento técnico) */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Planillas de metrados por partida</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Sustento técnico que alimenta la hoja resumen. Expande una partida para registrar referencias, dimensiones y fórmulas.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <Label>Agregar planilla para partida</Label>
-                    <Select onValueChange={(v) => { void addLine(v); setExpandedItemId(v); }}>
-                      <SelectTrigger><SelectValue placeholder="Elige partida..." /></SelectTrigger>
-                      <SelectContent>
-                        {items.map((it) => (
-                          <SelectItem key={it.id} value={it.id}>{it.item_code} — {it.description}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {items.filter((it) => lines.some((l) => l.item_id === it.id)).length === 0 && (
-                  <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    Aún no hay planillas. Selecciona una partida arriba para crear su primera línea.
-                  </p>
-                )}
-
-                <div className="space-y-2">
-                  {items
-                    .filter((it) => lines.some((l) => l.item_id === it.id))
-                    .map((it) => {
-                      const itLines = lines.filter((l) => l.item_id === it.id);
-                      const itTotal = itLines.reduce((s, l) => s + Number(l.partial || 0), 0);
-                      const isOpen = expandedItemId === it.id;
-                      return (
-                        <div key={it.id} className="rounded-md border">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedItemId(isOpen ? null : it.id)}
-                            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-                              <span className="font-mono text-xs">{it.item_code}</span>
-                              <span className="truncate text-sm">{it.description}</span>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0 text-xs">
-                              <Badge variant="secondary">{itLines.length} línea{itLines.length === 1 ? "" : "s"}</Badge>
-                              <span className="font-mono">Total: {formatNum(itTotal, 2)} {it.unit}</span>
-                            </div>
-                          </button>
-                          {isOpen && (
-                            <div className="overflow-x-auto border-t bg-muted/10 p-2">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Referencia (tramo / sector)</TableHead>
-                                    <TableHead>Detalle de sustento</TableHead>
-                                    <TableHead className="w-[60px]">N°</TableHead>
-                                    <TableHead className="w-[80px]">Largo</TableHead>
-                                    <TableHead className="w-[80px]">Ancho</TableHead>
-                                    <TableHead className="w-[80px]">Alto</TableHead>
-                                    <TableHead className="w-[110px]">Fórmula</TableHead>
-                                    <TableHead className="w-[100px] text-right">Parcial</TableHead>
-                                    <TableHead className="w-[40px]"></TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {itLines.map((l) => (
-                                    <TableRow key={l.id}>
-                                      <TableCell><Input className="h-8" defaultValue={l.group_label ?? ""} onBlur={(e) => updateLine(l.id, { group_label: e.target.value })} placeholder="Calle / tramo / sector" /></TableCell>
-                                      <TableCell><Input className="h-8" defaultValue={l.description ?? ""} onBlur={(e) => updateLine(l.id, { description: e.target.value })} placeholder="Detalle de sustento" /></TableCell>
-                                      <TableCell><Input className="h-8" type="number" defaultValue={l.num_elements ?? 1} onBlur={(e) => updateLine(l.id, { num_elements: Number(e.target.value) })} /></TableCell>
-                                      <TableCell><Input className="h-8" type="number" defaultValue={l.length ?? ""} onBlur={(e) => updateLine(l.id, { length: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
-                                      <TableCell><Input className="h-8" type="number" defaultValue={l.width ?? ""} onBlur={(e) => updateLine(l.id, { width: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
-                                      <TableCell><Input className="h-8" type="number" defaultValue={l.height ?? ""} onBlur={(e) => updateLine(l.id, { height: e.target.value === "" ? null : Number(e.target.value) })} /></TableCell>
-                                      <TableCell><Input className="h-8" defaultValue={l.formula ?? ""} placeholder="L*A*H*N" onBlur={(e) => updateLine(l.id, { formula: e.target.value || null })} /></TableCell>
-                                      <TableCell className="text-right font-mono">{formatNum(Number(l.partial), 2)}</TableCell>
-                                      <TableCell><Button variant="ghost" size="icon" onClick={() => removeLine(l.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                                    </TableRow>
-                                  ))}
-                                  <TableRow className="bg-muted/30 font-medium">
-                                    <TableCell colSpan={7} className="text-right text-xs">Total partida</TableCell>
-                                    <TableCell className="text-right font-mono">{formatNum(itTotal, 2)} {it.unit}</TableCell>
-                                    <TableCell></TableCell>
-                                  </TableRow>
-                                </TableBody>
-                              </Table>
-                              <div className="mt-2 flex justify-end">
-                                <Button size="sm" variant="outline" onClick={() => addLine(it.id)}>
-                                  <Plus className="mr-1 h-4 w-4" /> Agregar línea
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        );
-      })()}
-
 
       {/* Step 4: deducciones */}
       {step === 4 && period && (
@@ -776,7 +610,7 @@ function ExpedientePage() {
       {step === 5 && period && project && (
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>Resumen de valorización</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Resumen de Memoria valorizada e Informe Técnico</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
                 <Stat label="Acumulado anterior" value={formatMoney(t.prev, currency)} />
@@ -790,48 +624,16 @@ function ExpedientePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Cuadro de valorización por partida</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Ítem</TableHead><TableHead>Descripción</TableHead><TableHead>Und</TableHead>
-                  <TableHead className="text-right">Met. base</TableHead>
-                  <TableHead className="text-right">Ant.</TableHead>
-                  <TableHead className="text-right">Actual</TableHead>
-                  <TableHead className="text-right">Acum.</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead className="text-right">% Acum</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {valTable.map((r) => (
-                    <TableRow key={r.item.id}>
-                      <TableCell className="text-xs">{r.item.item_code}</TableCell>
-                      <TableCell className="max-w-[280px] truncate text-xs">{r.item.description}</TableCell>
-                      <TableCell className="text-xs">{r.item.unit}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(Number(r.item.base_quantity), 2)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(r.qtyPrev, 2)}</TableCell>
-                      <TableCell className="text-right text-xs font-semibold">{formatNum(r.qtyCurrent, 2)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(r.qtyAccum, 2)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(r.qtyBalance, 2)}</TableCell>
-                      <TableCell className="text-right text-xs"><Badge variant="outline">{formatNum(r.pctAccum, 1)}%</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card>
             <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
                 {generationError ? (
                   <span className="whitespace-pre-line text-destructive">{generationError}</span>
                 ) : isFichaTecnicaIncomplete(project) ? (
                   <span className="text-destructive">
-                    La ficha técnica del proyecto está incompleta. Complétala antes de generar el expediente.
+                    La ficha técnica del proyecto está incompleta. Complétala antes de generar la memoria e informe técnico.
                   </span>
                 ) : (
-                  <span>Ficha técnica completa. Listo para generar el expediente.</span>
+                  <span>Ficha técnica completa. Listo para generar la memoria e informe técnico.</span>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -847,7 +649,7 @@ function ExpedientePage() {
                 )}
                 <Button onClick={generatePdf} disabled={generating || isFichaTecnicaIncomplete(project)}>
                   {generating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}
-                  {generating ? "Generando expediente..." : "Generar Expediente PDF"}
+                  {generating ? "Generando memoria e informe..." : "Generar Memoria e Informe PDF"}
                 </Button>
               </div>
             </CardContent>
@@ -879,6 +681,15 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
     <div className={`rounded-md border p-3 ${highlight ? "border-primary bg-primary/10" : ""}`}>
       <p className="text-xs uppercase text-muted-foreground">{label}</p>
       <p className={`mt-1 text-lg font-bold ${highlight ? "text-primary" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+function FichaDato({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-[11px] uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium text-foreground">{String(value || "—")}</p>
     </div>
   );
 }
