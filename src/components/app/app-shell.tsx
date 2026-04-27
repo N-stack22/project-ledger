@@ -37,6 +37,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { roleLabels } from "@/lib/business";
 import { WorkspaceProvider } from "@/components/app/workspace-provider";
+import { ThemeToggle } from "@/components/app/theme-toggle";
+import { Home } from "lucide-react";
 
 const menuGroups = [
   {
@@ -155,6 +157,13 @@ function AppTopbar() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/">
+              <Home className="mr-2 h-4 w-4" />
+              Volver a inicio
+            </Link>
+          </Button>
+          <ThemeToggle />
           <Button variant="outline" onClick={() => void signOut()}>
             Cerrar sesión
           </Button>
