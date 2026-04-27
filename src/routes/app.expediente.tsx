@@ -268,7 +268,7 @@ function ExpedientePage() {
 
     setGenerating(true);
     setGenerationError(null);
-    const tid = toast.loading("Generando expediente PDF...");
+    const tid = toast.loading("Generando memoria e informe técnico PDF...");
 
     try {
       const res = await generateExpedienteClientPdf({
@@ -287,7 +287,7 @@ function ExpedientePage() {
       toast.dismiss(tid);
       if (lastUrl) URL.revokeObjectURL(lastUrl);
       setLastUrl(res.url);
-      toast.success("Expediente generado correctamente");
+      toast.success("Memoria e informe técnico generados correctamente");
 
       const link = document.createElement("a");
       link.href = res.url;
@@ -300,7 +300,7 @@ function ExpedientePage() {
     } catch (e: any) {
       toast.dismiss(tid);
       const msg = e?.message ?? "Error desconocido al generar el PDF";
-      console.error("[Expediente] generatePdf failed", e);
+      console.error("[MemoriaInforme] generatePdf failed", e);
       setGenerationError(msg);
       toast.error(msg, { duration: 12000, style: { whiteSpace: "pre-line" } });
     } finally {
@@ -310,8 +310,8 @@ function ExpedientePage() {
 
   return (
     <PageLayout
-      title="Expediente Mensual de Supervisión"
-      description="Asistente del expediente: ficha técnica, memoria valorizada, metrados, valorización y PDF."
+      title="Memoria valorizada e Informe Técnico"
+      description="Asistente para completar la ficha técnica y la memoria valorizada e informe técnico."
     >
       {/* Stepper */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
