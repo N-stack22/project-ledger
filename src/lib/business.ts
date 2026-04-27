@@ -53,6 +53,7 @@ export const projectStatusLabels = {
   closing: "En cierre",
   closed: "Cerrada",
   archived: "Archivada",
+  cancelled: "Cancelada",
 } as const;
 
 export function formatCurrency(value: number, currency = "PEN") {
