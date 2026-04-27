@@ -437,6 +437,195 @@ export function isFichaTecnicaIncomplete(project: EditableProject | undefined | 
   return false;
 }
 
+type ProjectMovementCheck = {
+  budget_imports: number;
+  budget_items: number;
+  metrado_entries: number;
+  metrado_lines: number;
+  memoria_valorizada: number;
+  valuations: number;
+  valuation_periods: number;
+  liquidations: number;
+  expediente_documents: number;
+};
+
+async function checkProjectMovement(projectId: string): Promise<ProjectMovementCheck> {
+  const tables = [
+    "budget_imports",
+    "budget_items",
+    "metrado_entries",
+    "metrado_lines",
+    "memoria_valorizada",
+    "valuations",
+    "valuation_periods",
+    "liquidations",
+    "expediente_documents",
+  ] as const;
+  const result: Record<string, number> = {};
+  await Promise.all(
+    tables.map(async (table) => {
+      const { count } = await supabase
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", projectId);
+      result[table] = count ?? 0;
+    }),
+  );
+  return result as ProjectMovementCheck;
+}
+
+const movementLabels: Record<keyof ProjectMovementCheck, string> = {
+  budget_imports: "Importaciones de presupuesto",
+  budget_items: "Partidas de presupuesto",
+  metrado_entries: "Metrados (asientos)",
+  metrado_lines: "Líneas de metrado detallado",
+  memoria_valorizada: "Memorias valorizadas",
+  valuations: "Valorizaciones",
+  valuation_periods: "Períodos de valorización",
+  liquidations: "Liquidaciones",
+  expediente_documents: "Documentos del expediente",
+};
+
+function DeleteOrArchiveProjectDialog({
+  project,
+  onDone,
+}: {
+  project: EditableProject;
+  onDone: () => Promise<void> | void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [movement, setMovement] = useState<ProjectMovementCheck | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    setError(null);
+    void checkProjectMovement(project.id)
+      .then(setMovement)
+      .catch((e) => setError(e?.message ?? "No se pudo verificar el proyecto."))
+      .finally(() => setLoading(false));
+  }, [open, project.id]);
+
+  const totalMovement = movement
+    ? Object.values(movement).reduce((sum, n) => sum + n, 0)
+    : 0;
+  const isEmpty = movement !== null && totalMovement === 0;
+
+  const handleDelete = async () => {
+    if (!confirm(`¿Eliminar permanentemente el proyecto "${project.name}"? Esta acción no se puede deshacer.`)) return;
+    setBusy(true);
+    setError(null);
+    const { error: delError } = await supabase.from("projects").delete().eq("id", project.id);
+    setBusy(false);
+    if (delError) {
+      setError(delError.message);
+      return;
+    }
+    setOpen(false);
+    await onDone();
+  };
+
+  const handleStatusChange = async (newStatus: "archived" | "cancelled") => {
+    const verb = newStatus === "archived" ? "archivar" : "cancelar";
+    if (!confirm(`¿Confirmas ${verb} el proyecto "${project.name}"? Se conservará el historial.`)) return;
+    setBusy(true);
+    setError(null);
+    const { error: updError } = await supabase
+      .from("projects")
+      .update({ status: newStatus })
+      .eq("id", project.id);
+    setBusy(false);
+    if (updError) {
+      setError(updError.message);
+      return;
+    }
+    setOpen(false);
+    await onDone();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+          Eliminar / Archivar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Eliminar o archivar proyecto</DialogTitle>
+          <DialogDescription>
+            <span className="font-medium text-foreground">{project.code} · {project.name}</span>
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Verificando información asociada…</p>
+        ) : error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : movement ? (
+          <div className="space-y-4">
+            {isEmpty ? (
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                Este proyecto <span className="font-medium text-foreground">no tiene información asociada</span>.
+                Puedes eliminarlo permanentemente.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                  Este proyecto tiene información registrada y <span className="font-medium">no puede eliminarse físicamente</span>.
+                  Para mantener trazabilidad, archívalo o cancélalo.
+                </div>
+                <ul className="ml-4 list-disc space-y-1 text-xs text-muted-foreground">
+                  {(Object.keys(movement) as Array<keyof ProjectMovementCheck>)
+                    .filter((k) => movement[k] > 0)
+                    .map((k) => (
+                      <li key={k}>
+                        {movementLabels[k]}: <span className="font-medium text-foreground">{movement[k]}</span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+            Cerrar
+          </Button>
+          {isEmpty ? (
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={busy}>
+              {busy ? "Eliminando…" : "Eliminar permanentemente"}
+            </Button>
+          ) : movement ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleStatusChange("archived")}
+                disabled={busy || project.status === "archived"}
+              >
+                Archivar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => handleStatusChange("cancelled")}
+                disabled={busy || project.status === "cancelled"}
+              >
+                Cancelar proyecto
+              </Button>
+            </>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EditProjectDialog({ project, onSaved }: { project: EditableProject; onSaved: () => Promise<void> | void }) {
   const [open, setOpen] = useState(false);
   const form = useForm<z.infer<typeof fichaTecnicaSchema>>({
