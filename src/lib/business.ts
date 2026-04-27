@@ -236,6 +236,17 @@ function parseBudgetNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function getBudgetHierarchyMeta(itemCode: string) {
+  const code = itemCode.trim();
+  if (!code) return { hierarchy_level: null, parent_item_code: null };
+
+  const parts = code.split(".").filter(Boolean);
+  return {
+    hierarchy_level: parts.length || null,
+    parent_item_code: parts.length > 1 ? parts.slice(0, -1).join(".") : null,
+  };
+}
+
 function matchesBudgetAlias(cell: string, alias: string) {
   if (!cell || !alias) return false;
 
@@ -380,6 +391,7 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
             base_quantity: baseQuantity,
             unit_price: unitPrice,
             partial_amount: partialAmount,
+            ...getBudgetHierarchyMeta(itemCode),
             category: category || undefined,
           }];
         });
