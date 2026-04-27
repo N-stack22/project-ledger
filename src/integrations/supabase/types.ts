@@ -1045,6 +1045,7 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
+      project_is_empty: { Args: { _project_id: string }; Returns: boolean }
     }
     Enums: {
       app_role:
@@ -1071,7 +1072,13 @@ export type Database = {
         | "imported"
         | "failed"
       liquidation_status: "draft" | "generated" | "approved"
-      project_status: "draft" | "active" | "closing" | "closed" | "archived"
+      project_status:
+        | "draft"
+        | "active"
+        | "closing"
+        | "closed"
+        | "archived"
+        | "cancelled"
       valuation_status: "pending" | "reviewed" | "approved" | "rejected"
       workflow_action:
         | "created"
@@ -1237,7 +1244,14 @@ export const Constants = {
         "failed",
       ],
       liquidation_status: ["draft", "generated", "approved"],
-      project_status: ["draft", "active", "closing", "closed", "archived"],
+      project_status: [
+        "draft",
+        "active",
+        "closing",
+        "closed",
+        "archived",
+        "cancelled",
+      ],
       valuation_status: ["pending", "reviewed", "approved", "rejected"],
       workflow_action: [
         "created",
