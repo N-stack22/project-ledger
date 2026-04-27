@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { BudgetItemRow, ProjectRow } from "@/lib/domain";
 import {
+  buildSummaryHierarchy,
   deductionLabels,
   formatMoney,
   formatNum,
