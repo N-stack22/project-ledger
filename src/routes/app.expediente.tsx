@@ -441,6 +441,7 @@ function ExpedientePage() {
         const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
         const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
         const baseTotal = valTable.reduce((s, r) => s + Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0), 0);
+        const summaryHierarchy = buildSummaryHierarchy(valTable);
         const pctEjecutado = baseTotal > 0 ? (t.accum / baseTotal) * 100 : 0;
         const projectLocation = [project.district, project.province, project.department].filter(Boolean).join(", ") || "—";
         return (
