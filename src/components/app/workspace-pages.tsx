@@ -6,6 +6,7 @@ import { ThemeToggle as LoginThemeToggle } from "@/components/app/theme-toggle";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -493,9 +494,9 @@ function DeleteOrArchiveProjectDialog({
   onDone,
 }: {
   project: EditableProject;
-  onDone: () => Promise<void> | void;
+  onDone: (result?: { removed?: boolean }) => Promise<void> | void;
 }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, session } = useAuth();
   const purgeProjectFn = useServerFn(purgeProject);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -505,6 +506,11 @@ function DeleteOrArchiveProjectDialog({
   const [purgeMode, setPurgeMode] = useState(false);
   const [purgeAck, setPurgeAck] = useState(false);
   const [purgeCode, setPurgeCode] = useState("");
+
+  const showError = (message: string) => {
+    setError(message);
+    toast.error(message, { duration: 10000 });
+  };
 
   useEffect(() => {
     if (!open) {
@@ -534,11 +540,12 @@ function DeleteOrArchiveProjectDialog({
     const { error: delError } = await supabase.from("projects").delete().eq("id", project.id);
     setBusy(false);
     if (delError) {
-      setError(delError.message);
+      showError(delError.message);
       return;
     }
+    toast.success("Proyecto eliminado permanentemente.");
     setOpen(false);
-    await onDone();
+    await onDone({ removed: true });
   };
 
   const handleStatusChange = async (newStatus: "archived" | "cancelled") => {
@@ -552,9 +559,10 @@ function DeleteOrArchiveProjectDialog({
       .eq("id", project.id);
     setBusy(false);
     if (updError) {
-      setError(updError.message);
+      showError(updError.message);
       return;
     }
+    toast.success(newStatus === "archived" ? "Proyecto archivado." : "Proyecto cancelado.");
     setOpen(false);
     await onDone();
   };
@@ -565,14 +573,33 @@ function DeleteOrArchiveProjectDialog({
     )) return;
     setBusy(true);
     setError(null);
+    const tid = toast.loading("Purgando proyecto y eliminando información relacionada…");
     try {
-      await purgeProjectFn({ data: { projectId: project.id, confirmCode: purgeCode } });
+      if (!session?.access_token) {
+        throw new Error("No hay una sesión válida para ejecutar la purga. Vuelve a iniciar sesión e inténtalo nuevamente.");
+      }
+      const result = await purgeProjectFn({
+        data: { projectId: project.id, confirmCode: purgeCode },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!result?.success) {
+        throw new Error("La purga no confirmó una eliminación completa.");
+      }
+      const { data: stillExists, error: verifyError } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("id", project.id)
+        .maybeSingle();
+      if (verifyError) throw new Error(`La purga terminó, pero no se pudo refrescar/verificar la lista: ${verifyError.message}`);
+      if (stillExists) throw new Error("La purga terminó, pero el proyecto todavía aparece en la base de datos.");
+      toast.success("Proyecto purgado completamente. Ya no existe en el sistema.");
       setOpen(false);
-      await onDone();
+      await onDone({ removed: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error al purgar el proyecto.";
-      setError(msg);
+      showError(msg);
     } finally {
+      toast.dismiss(tid);
       setBusy(false);
     }
   };
@@ -907,6 +934,16 @@ export function ProjectsPage() {
   const { projects, refresh } = useWorkspace();
   const { user, roles } = useAuth();
   const [open, setOpen] = useState(false);
+  const [purgedProjectIds, setPurgedProjectIds] = useState<Set<string>>(() => new Set());
+  const visibleProjects = useMemo(
+    () => projects.filter((project) => !purgedProjectIds.has(project.id)),
+    [projects, purgedProjectIds],
+  );
+
+  const refreshProjectsAfterRemoval = async (projectId: string) => {
+    setPurgedProjectIds((current) => new Set(current).add(projectId));
+    await refresh();
+  };
   const form = useForm<z.infer<typeof projectSchema>>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -1055,7 +1092,7 @@ export function ProjectsPage() {
             </CardHeader>
           </Card>
         ) : null}
-        {projects.length === 0 ? (
+        {visibleProjects.length === 0 ? (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Aún no hay proyectos registrados</CardTitle>
@@ -1067,7 +1104,7 @@ export function ProjectsPage() {
         ) : (
           <SectionTable
             headers={["Código", "Proyecto", "Cliente", "Ubicación", "Contrato", "Monto", "Estado", "Ficha técnica", "Acciones"]}
-            rows={projects.map((project) => {
+            rows={visibleProjects.map((project) => {
               const incomplete = isFichaTecnicaIncomplete(project);
               return [
                 project.code,
@@ -1082,7 +1119,10 @@ export function ProjectsPage() {
                 </Badge>,
                 <div key={`a-${project.id}`} className="flex flex-wrap gap-2">
                   <EditProjectDialog project={project} onSaved={refresh} />
-                  <DeleteOrArchiveProjectDialog project={project} onDone={refresh} />
+                  <DeleteOrArchiveProjectDialog
+                    project={project}
+                    onDone={(result) => result?.removed ? refreshProjectsAfterRemoval(project.id) : refresh()}
+                  />
                 </div>,
               ];
             })}
