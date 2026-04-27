@@ -132,10 +132,14 @@ export function buildValuationTable(args: {
     });
 }
 
+export function isMeasurableBudgetItem(item: BudgetItemRow) {
+  return Boolean((item.unit ?? "").trim()) || Number(item.base_quantity || 0) > 0 || Number(item.unit_price || 0) > 0;
+}
+
 export function totals(rows: ValuationItemSummary[]) {
   return rows.reduce(
     (acc, r) => ({
-      base: acc.base + Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0),
+      base: acc.base + (isMeasurableBudgetItem(r.item) ? Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0) : 0),
       prev: acc.prev + r.amountPrev,
       current: acc.current + r.amountCurrent,
       accum: acc.accum + r.amountAccum,
@@ -160,7 +164,7 @@ export type SummaryHierarchyRow = {
  * Construye la hoja resumen jerárquica de metrados.
  * - Incluye los niveles padre (01, 03.02, 03.02.01...) aunque no tengan datos.
  * - Solo los nodos hoja con metrado > 0 muestran TOTAL.
- * - Si el padre no existe como partida importada, se sintetiza con solo el código.
+  * - Los padres se toman de las partidas importadas; no se crean descripciones artificiales.
  */
 export function buildSummaryHierarchy(rows: ValuationItemSummary[]): SummaryHierarchyRow[] {
   // Indexar partidas por código
@@ -185,8 +189,9 @@ export function buildSummaryHierarchy(rows: ValuationItemSummary[]): SummaryHier
     for (let i = 1; i < parts.length; i++) {
       const ancestorCode = parts.slice(0, i).join(".");
       if (seen.has(ancestorCode)) continue;
-      seen.add(ancestorCode);
       const parent = byCode.get(ancestorCode);
+      if (!parent) continue;
+      seen.add(ancestorCode);
       out.push({
         key: ancestorCode,
         code: ancestorCode,
