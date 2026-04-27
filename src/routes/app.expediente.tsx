@@ -718,6 +718,15 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
   );
 }
 
+function FichaDato({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-[11px] uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium text-foreground">{String(value || "—")}</p>
+    </div>
+  );
+}
+
 function NewPeriodForm({
   defaultNumber,
   previousPeriod,
