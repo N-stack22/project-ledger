@@ -1125,7 +1125,14 @@ export function MetradosPage() {
     const merged = { ...current, ...patch } as MetradoLineRow;
     const partial = computeLinePartialLocal(merged);
     setLines((prev) => prev.map((l) => (l.id === id ? { ...merged, partial } : l)));
-    await supabase.from("metrado_lines").update({ ...patch, partial }).eq("id", id);
+    const { id: _ignoreId, period_id: _ignorePeriodId, ...safePatch } = patch as Record<string, unknown> & {
+      id?: string;
+      period_id?: string | null;
+    };
+    await supabase
+      .from("metrado_lines")
+      .update({ ...(safePatch as Record<string, unknown>), partial })
+      .eq("id", id);
   }
 
   async function deleteLine(id: string) {
