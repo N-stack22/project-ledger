@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  Crosshair,
   FileSpreadsheet,
   FileStack,
   Gauge,
@@ -13,6 +12,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -38,6 +38,7 @@ function Index() {
             <a href="#flujo" className="hover:text-foreground">Flujo</a>
           </nav>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button asChild variant="ghost" size="sm">
               <Link to="/login">Ingresar</Link>
             </Button>
