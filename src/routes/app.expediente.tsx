@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/components/app/workspace-provider";
@@ -611,7 +610,7 @@ function ExpedientePage() {
       {step === 5 && period && project && (
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>Resumen de valorización</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Resumen de Memoria valorizada e Informe Técnico</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
                 <Stat label="Acumulado anterior" value={formatMoney(t.prev, currency)} />
@@ -625,48 +624,16 @@ function ExpedientePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Cuadro de valorización por partida</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Ítem</TableHead><TableHead>Descripción</TableHead><TableHead>Und</TableHead>
-                  <TableHead className="text-right">Met. base</TableHead>
-                  <TableHead className="text-right">Ant.</TableHead>
-                  <TableHead className="text-right">Actual</TableHead>
-                  <TableHead className="text-right">Acum.</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead className="text-right">% Acum</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {valTable.map((r) => (
-                    <TableRow key={r.item.id}>
-                      <TableCell className="text-xs">{r.item.item_code}</TableCell>
-                      <TableCell className="max-w-[280px] truncate text-xs">{r.item.description}</TableCell>
-                      <TableCell className="text-xs">{r.item.unit}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(Number(r.item.base_quantity), 2)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(r.qtyPrev, 2)}</TableCell>
-                      <TableCell className="text-right text-xs font-semibold">{formatNum(r.qtyCurrent, 2)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(r.qtyAccum, 2)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatNum(r.qtyBalance, 2)}</TableCell>
-                      <TableCell className="text-right text-xs"><Badge variant="outline">{formatNum(r.pctAccum, 1)}%</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card>
             <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
                 {generationError ? (
                   <span className="whitespace-pre-line text-destructive">{generationError}</span>
                 ) : isFichaTecnicaIncomplete(project) ? (
                   <span className="text-destructive">
-                    La ficha técnica del proyecto está incompleta. Complétala antes de generar el expediente.
+                    La ficha técnica del proyecto está incompleta. Complétala antes de generar la memoria e informe técnico.
                   </span>
                 ) : (
-                  <span>Ficha técnica completa. Listo para generar el expediente.</span>
+                  <span>Ficha técnica completa. Listo para generar la memoria e informe técnico.</span>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -682,7 +649,7 @@ function ExpedientePage() {
                 )}
                 <Button onClick={generatePdf} disabled={generating || isFichaTecnicaIncomplete(project)}>
                   {generating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}
-                  {generating ? "Generando expediente..." : "Generar Expediente PDF"}
+                  {generating ? "Generando memoria e informe..." : "Generar Memoria e Informe PDF"}
                 </Button>
               </div>
             </CardContent>
