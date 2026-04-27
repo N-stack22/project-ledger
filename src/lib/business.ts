@@ -366,8 +366,12 @@ export function detectBudgetWorkbook(file: File): Promise<BudgetDetectionResult>
           const itemCode = String(getValue("item_code") ?? "").trim();
           const category = String(getValue("category") ?? "").trim();
 
-          if (!description || !unit) return [];
+          if (!description) return [];
           if (!/[a-z0-9]/i.test(description)) return [];
+          // Aceptar filas padre/agrupadoras: tienen item_code + descripción pero sin unidad/precio.
+          // Se importan con unit="" y cantidades en 0 para preservar la jerarquía del Excel.
+          const isParentRow = !unit && baseQuantity === 0 && unitPrice === 0;
+          if (!isParentRow && !unit) return [];
 
           return [{
             item_code: itemCode || undefined,
