@@ -42,6 +42,8 @@ export type BudgetPreviewRow = {
   base_quantity: number;
   unit_price: number;
   partial_amount: number;
+  hierarchy_level?: number | null;
+  parent_item_code?: string | null;
   category?: string;
 };
 
