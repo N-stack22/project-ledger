@@ -1367,6 +1367,10 @@ function parentCodeOf(code: string | null | undefined): string | null {
   return parts.slice(0, -1).join(".");
 }
 
+function isMeasurableBudgetItemLocal(item: BudgetItemRow): boolean {
+  return Boolean((item.unit ?? "").trim()) || Number(item.base_quantity || 0) > 0 || Number(item.unit_price || 0) > 0;
+}
+
 export function MetradosPage() {
   const { projects, budgetItems } = useWorkspace();
   const { user } = useAuth();
@@ -1380,6 +1384,7 @@ export function MetradosPage() {
     () =>
       budgetItems
         .filter((b) => b.project_id === projectId)
+        .filter(isMeasurableBudgetItemLocal)
         .slice()
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
     [budgetItems, projectId],
