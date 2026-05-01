@@ -36,6 +36,7 @@ import {
   valuationStatusLabels,
 } from "@/lib/business";
 import { parseRichTextDocument, stripHtml, type BudgetItemRow } from "@/lib/domain";
+import { buildParentCodeSet, isLeafByCode } from "@/lib/expediente";
 import { AuthGuard } from "@/components/app/auth-guard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
