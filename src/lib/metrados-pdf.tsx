@@ -330,170 +330,197 @@ export async function generateMetradosPdf(args: GenerateMetradosPdfArgs) {
       return ca.localeCompare(cb, "es", { numeric: true });
     });
 
+  // Encabezado de planilla con dos filas (DIMENSIONES MTS. agrupada)
   const PlanillaHeader = h(
     View,
-    { style: styles.thRow, fixed: true } as any,
-    h(Text, { style: [styles.th, { width: planWidths.n, textAlign: "center" }] as any }, "N°"),
-    h(Text, { style: [styles.th, { width: planWidths.desc }] as any }, "DESCRIPCIÓN"),
-    h(Text, { style: [styles.th, { width: planWidths.und, textAlign: "center" }] as any }, "UND."),
-    h(Text, { style: [styles.th, { width: planWidths.largo, textAlign: "center" }] as any }, "LARGO"),
-    h(Text, { style: [styles.th, { width: planWidths.ancho, textAlign: "center" }] as any }, "ANCHO"),
-    h(Text, { style: [styles.th, { width: planWidths.alto, textAlign: "center" }] as any }, "ALT."),
-    h(Text, { style: [styles.th, { width: planWidths.nelem, textAlign: "center" }] as any }, "N° ELEM."),
+    { fixed: true } as any,
+    // Fila 1
     h(
-      Text,
-      { style: [styles.th, { width: planWidths.parcial, textAlign: "right", borderRightWidth: 0 }] as any },
-      "PARCIAL",
+      View,
+      { style: styles.thRow } as any,
+      h(
+        Text,
+        { style: [styles.th, { width: planWidths.partida, textAlign: "center" }, { borderBottomWidth: 0.5, borderBottomColor: COLORS.border }] as any, rowSpan: 2 },
+        "PARTIDA",
+      ),
+      h(
+        Text,
+        { style: [styles.th, { width: planWidths.desc, textAlign: "center" }] as any },
+        "DESCRIPCIÓN",
+      ),
+      h(
+        Text,
+        { style: [styles.th, { width: planWidths.und, textAlign: "center" }] as any },
+        "UND.",
+      ),
+      h(
+        Text,
+        { style: [styles.th, { width: planDimsWidth, textAlign: "center", borderBottomWidth: 0.5, borderBottomColor: COLORS.border }] as any },
+        "DIMENSIONES (MTS.)",
+      ),
+      h(
+        Text,
+        { style: [styles.th, { width: planWidths.nelem, textAlign: "center" }] as any },
+        "N° DE",
+      ),
+      h(
+        Text,
+        { style: [styles.th, { width: planWidths.parcial, textAlign: "center" }] as any },
+        "PARCIAL",
+      ),
+      h(
+        Text,
+        { style: [styles.th, { width: planWidths.total, textAlign: "center", borderRightWidth: 0 }] as any },
+        "TOTAL",
+      ),
+    ),
+    // Fila 2 (sub-encabezados de dimensiones + ELEM)
+    h(
+      View,
+      { style: styles.thRow } as any,
+      h(Text, { style: [styles.th, { width: planWidths.partida, borderRightColor: COLORS.border }] as any }, ""),
+      h(Text, { style: [styles.th, { width: planWidths.desc }] as any }, ""),
+      h(Text, { style: [styles.th, { width: planWidths.und }] as any }, ""),
+      h(Text, { style: [styles.th, { width: planWidths.largo, textAlign: "center" }] as any }, "LARGO"),
+      h(Text, { style: [styles.th, { width: planWidths.ancho, textAlign: "center" }] as any }, "ANCHO"),
+      h(Text, { style: [styles.th, { width: planWidths.alto, textAlign: "center" }] as any }, "ALT."),
+      h(Text, { style: [styles.th, { width: planWidths.nelem, textAlign: "center" }] as any }, "ELEM."),
+      h(Text, { style: [styles.th, { width: planWidths.parcial }] as any }, ""),
+      h(Text, { style: [styles.th, { width: planWidths.total, borderRightWidth: 0 }] as any }, ""),
     ),
   );
 
-  const planillaSections: any[] = [];
+  const planillaRows: any[] = [];
 
   for (let i = 0; i < executedItems.length; i++) {
     const { item, lines } = executedItems[i];
     const total = lines.reduce((acc, l) => acc + Number(l.partial || 0), 0);
 
-    const headerBox = h(
-      View,
-      { style: styles.partidaHeader, wrap: false } as any,
+    // Fila principal de la subpartida: PARTIDA + DESCRIPCIÓN + UND + TOTAL
+    planillaRows.push(
       h(
         View,
-        { style: { flexDirection: "column" } } as any,
-        h(Text, { style: styles.partidaCode } as any, `${item.item_code ?? "—"}  ${item.description ?? ""}`),
+        { key: `head-${item.id}`, style: styles.tr, wrap: false } as any,
         h(
           Text,
-          { style: styles.partidaMeta } as any,
-          `Und: ${item.unit || "—"}   ·   Metrado base: ${formatNum(Number(item.base_quantity || 0), 4)}`,
+          { style: [styles.td, { width: planWidths.partida, fontFamily: "Helvetica-Bold" }] as any },
+          item.item_code ?? "",
+        ),
+        h(
+          Text,
+          { style: [styles.td, { width: planWidths.desc, fontFamily: "Helvetica-Bold" }] as any },
+          (item.description ?? "").toUpperCase(),
+        ),
+        h(
+          Text,
+          { style: [styles.td, { width: planWidths.und, textAlign: "center", fontFamily: "Helvetica-Bold" }] as any },
+          item.unit || "",
+        ),
+        h(Text, { style: [styles.td, { width: planWidths.largo }] as any }, ""),
+        h(Text, { style: [styles.td, { width: planWidths.ancho }] as any }, ""),
+        h(Text, { style: [styles.td, { width: planWidths.alto }] as any }, ""),
+        h(Text, { style: [styles.td, { width: planWidths.nelem }] as any }, ""),
+        h(Text, { style: [styles.td, { width: planWidths.parcial }] as any }, ""),
+        h(
+          Text,
+          {
+            style: [
+              styles.td,
+              { width: planWidths.total, textAlign: "right", fontFamily: "Helvetica-Bold", borderRightWidth: 0 },
+            ] as any,
+          },
+          formatNum(total, 2),
         ),
       ),
-      h(
-        Text,
-        { style: styles.partidaCode } as any,
-        `Total: ${formatNum(total, 4)} ${item.unit || ""}`,
-      ),
     );
 
-    const body = lines.length === 0
-      ? [
+    // Filas de detalle/sustento (Calle, Tramo, Sector, etc.)
+    for (const line of lines) {
+      const detail = clean(line.description ?? line.observation ?? line.location_ref ?? "");
+      planillaRows.push(
+        h(
+          View,
+          { key: `det-${line.id}`, style: styles.tr, wrap: false } as any,
+          h(Text, { style: [styles.td, { width: planWidths.partida }] as any }, ""),
           h(
-            View,
-            { key: "empty", style: styles.tr, wrap: false } as any,
-            h(
-              Text,
-              {
-                style: [styles.td, { width: 538, textAlign: "center", borderRightWidth: 0 }] as any,
-              },
-              "Sin líneas registradas.",
-            ),
+            Text,
+            { style: [styles.td, { width: planWidths.desc, paddingLeft: 14 }] as any },
+            detail,
           ),
-        ]
-      : lines.map((line, idx) =>
+          h(Text, { style: [styles.td, { width: planWidths.und }] as any }, ""),
+          h(Text, { style: [styles.td, { width: planWidths.largo, textAlign: "right" }] as any }, fmt(line.length, 2)),
+          h(Text, { style: [styles.td, { width: planWidths.ancho, textAlign: "right" }] as any }, fmt(line.width, 2)),
+          h(Text, { style: [styles.td, { width: planWidths.alto, textAlign: "right" }] as any }, fmt(line.height, 2)),
           h(
-            View,
-            { key: line.id, style: idx % 2 === 0 ? styles.tr : styles.trAlt, wrap: false } as any,
-            h(Text, { style: [styles.td, { width: planWidths.n, textAlign: "center" }] as any }, String(idx + 1)),
-            h(
-              Text,
-              { style: [styles.td, { width: planWidths.desc }] as any },
-              clean(line.description ?? line.observation ?? line.location_ref ?? "—"),
-            ),
-            h(
-              Text,
-              { style: [styles.td, { width: planWidths.und, textAlign: "center" }] as any },
-              item.unit || "",
-            ),
-            h(
-              Text,
-              { style: [styles.td, { width: planWidths.largo, textAlign: "right" }] as any },
-              fmt(line.length, 2),
-            ),
-            h(
-              Text,
-              { style: [styles.td, { width: planWidths.ancho, textAlign: "right" }] as any },
-              fmt(line.width, 2),
-            ),
-            h(
-              Text,
-              { style: [styles.td, { width: planWidths.alto, textAlign: "right" }] as any },
-              fmt(line.height, 2),
-            ),
-            h(
-              Text,
-              { style: [styles.td, { width: planWidths.nelem, textAlign: "right" }] as any },
-              line.num_elements != null ? String(line.num_elements) : "",
-            ),
-            h(
-              Text,
-              {
-                style: [
-                  styles.td,
-                  { width: planWidths.parcial, textAlign: "right", borderRightWidth: 0, fontFamily: "Helvetica-Bold" },
-                ] as any,
-              },
-              formatNum(Number(line.partial || 0), 4),
-            ),
+            Text,
+            { style: [styles.td, { width: planWidths.nelem, textAlign: "right" }] as any },
+            line.num_elements != null && Number(line.num_elements) !== 0 ? String(line.num_elements) : "",
           ),
-        );
+          h(
+            Text,
+            { style: [styles.td, { width: planWidths.parcial, textAlign: "right" }] as any },
+            fmt(line.partial, 2),
+          ),
+          h(
+            Text,
+            { style: [styles.td, { width: planWidths.total, borderRightWidth: 0 }] as any },
+            "",
+          ),
+        ),
+      );
+    }
 
-    const totalRow = h(
-      View,
-      { style: styles.totalRow, wrap: false } as any,
-      h(
-        Text,
-        {
-          style: [
-            styles.totalCell,
-            {
-              width:
-                planWidths.n +
-                planWidths.desc +
-                planWidths.und +
-                planWidths.largo +
-                planWidths.ancho +
-                planWidths.alto +
-                planWidths.nelem,
-              textAlign: "right",
-            },
-          ] as any,
-        },
-        `TOTAL ${item.unit || ""}`,
-      ),
-      h(
-        Text,
-        {
-          style: [
-            styles.totalCell,
-            { width: planWidths.parcial, textAlign: "right", borderRightWidth: 0 },
-          ] as any,
-        },
-        formatNum(total, 4),
-      ),
-    );
-
-    planillaSections.push(
+    // Fila separadora en blanco entre subpartidas
+    planillaRows.push(
       h(
         View,
-        { key: `partida-${item.id}`, wrap: false } as any,
-        headerBox,
-        h(View, { style: styles.table } as any, PlanillaHeader, ...body, totalRow),
+        { key: `sep-${item.id}`, style: styles.tr, wrap: false } as any,
+        h(Text, { style: [styles.td, { width: planTotalWidth, borderRightWidth: 0, height: 6 }] as any }, ""),
       ),
     );
   }
+
+  // Bloque de encabezado formal de la planilla (Proyecto / Cliente)
+  const planillaTitleBlock = h(
+    View,
+    { style: { borderWidth: 0.5, borderColor: COLORS.border, marginTop: 4 } } as any,
+    h(
+      View,
+      { style: { backgroundColor: COLORS.headerBg, padding: 4, borderBottomWidth: 0.5, borderBottomColor: COLORS.border } } as any,
+      h(Text, { style: { fontFamily: "Helvetica-Bold", fontSize: 10, textAlign: "center" } } as any, "PLANILLA DE METRADOS"),
+    ),
+    h(
+      View,
+      { style: { flexDirection: "row", padding: 4, borderBottomWidth: 0.5, borderBottomColor: COLORS.borderLight } } as any,
+      h(Text, { style: { width: 70, fontFamily: "Helvetica-Bold", fontSize: 8 } } as any, "PROYECTO:"),
+      h(Text, { style: { flex: 1, fontSize: 8 } } as any, clean(project.name)),
+    ),
+    h(
+      View,
+      { style: { flexDirection: "row", padding: 4, borderBottomWidth: 0.5, borderBottomColor: COLORS.borderLight } } as any,
+      h(Text, { style: { width: 70, fontFamily: "Helvetica-Bold", fontSize: 8 } } as any, "CLIENTE:"),
+      h(Text, { style: { flex: 1, fontSize: 8 } } as any, clean((project as any).client_name ?? (project as any).client ?? "—")),
+    ),
+    h(
+      View,
+      { style: { flexDirection: "row", padding: 4 } } as any,
+      h(Text, { style: { width: 70, fontFamily: "Helvetica-Bold", fontSize: 8 } } as any, "VALORIZACIÓN:"),
+      h(
+        Text,
+        { style: { flex: 1, fontSize: 8 } } as any,
+        `N° ${String(period.period_number).padStart(2, "0")}   ·   ${period.date_from} a ${period.date_to}`,
+      ),
+    ),
+  );
 
   const PlanillasPage = h(
     Page,
     { size: "A4", style: styles.page } as any,
     PageHeader(),
-    h(Text, { style: styles.h1 } as any, "PLANILLAS DE METRADOS"),
-    h(View, { style: styles.h1Rule } as any),
-    h(
-      Text,
-      { style: styles.p } as any,
-      "Detalle de líneas de metrado registradas por cada partida ejecutada en el período.",
-    ),
+    planillaTitleBlock,
     executedItems.length === 0
-      ? h(Text, { style: styles.p } as any, "Sin partidas con líneas registradas en el período.")
-      : h(Fragment, null, ...planillaSections),
+      ? h(Text, { style: [styles.p, { marginTop: 8 }] } as any, "Sin partidas con líneas registradas en el período.")
+      : h(View, { style: styles.table } as any, PlanillaHeader, ...planillaRows),
   );
 
   const doc = h(Document, null, ResumenPage, PlanillasPage);
