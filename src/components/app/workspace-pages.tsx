@@ -194,6 +194,67 @@ function ScrollableImportTable({ headers, rows }: { headers: string[]; rows: Rea
   );
 }
 
+type BudgetHierarchyItem = {
+  item_code?: string | null;
+  description: string;
+  unit: string;
+  base_quantity: number;
+  unit_price: number;
+  partial_amount: number;
+  hierarchy_level?: number | null;
+  sort_order?: number | null;
+};
+
+function compareBudgetItemCodes(a: string | null | undefined, b: string | null | undefined): number {
+  const codeA = (a ?? "").trim();
+  const codeB = (b ?? "").trim();
+  if (!codeA && !codeB) return 0;
+  if (!codeA) return 1;
+  if (!codeB) return -1;
+
+  const partsA = codeA.split(".");
+  const partsB = codeB.split(".");
+  const length = Math.max(partsA.length, partsB.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const partA = partsA[index];
+    const partB = partsB[index];
+    if (partA == null) return -1;
+    if (partB == null) return 1;
+
+    const numA = Number(partA);
+    const numB = Number(partB);
+    if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) return numA - numB;
+    if (partA !== partB) return partA.localeCompare(partB, "es", { numeric: true, sensitivity: "base" });
+  }
+
+  return 0;
+}
+
+function sortBudgetItemsHierarchically<T extends BudgetHierarchyItem>(items: T[]): T[] {
+  return items.slice().sort((a, b) => {
+    const codeOrder = compareBudgetItemCodes(a.item_code, b.item_code);
+    if (codeOrder !== 0) return codeOrder;
+    return Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+  });
+}
+
+function getBudgetHierarchyStats<T extends BudgetHierarchyItem>(items: T[]) {
+  const parentSet = buildParentCodeSet(items.map((item) => ({ item_code: item.item_code ?? null })));
+  const leafItems = items.filter((item) => isLeafByCode(item.item_code, parentSet));
+  const leafSubtotal = leafItems.reduce((sum, item) => sum + Number(item.partial_amount || 0), 0);
+  return { parentSet, leafItems, leafSubtotal, nodeCount: items.length, leafCount: leafItems.length };
+}
+
+function renderBudgetDescription(item: BudgetHierarchyItem) {
+  const level = item.hierarchy_level ?? Math.max((item.item_code ?? "").split(".").filter(Boolean).length - 1, 0);
+  return (
+    <span className="block" style={{ paddingInlineStart: `${Math.min(level, 6) * 1.25}rem` }}>
+      {item.description || "—"}
+    </span>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { signIn, signUp, isAuthenticated, loading } = useAuth();
