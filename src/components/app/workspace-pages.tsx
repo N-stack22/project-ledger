@@ -171,7 +171,7 @@ function ScrollableImportTable({ headers, rows }: { headers: string[]; rows: Rea
           <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
             <tr className="border-b border-border">
               {headers.map((header) => (
-                <th key={header} className="h-10 px-3 text-left align-middle font-medium text-muted-foreground">
+                <th key={header} className="h-10 whitespace-nowrap px-3 text-left align-middle font-medium text-muted-foreground">
                   {header}
                 </th>
               ))}
