@@ -16,11 +16,13 @@ import { useWorkspace } from "@/components/app/workspace-provider";
 import { isFichaTecnicaIncomplete } from "@/components/app/workspace-pages";
 import { useAuth } from "@/lib/auth";
 import {
+  buildParentCodeSet,
   buildSummaryHierarchy,
   buildValuationTable,
   deductionLabels,
   formatMoney,
   formatNum,
+  isLeafByCode,
   isMeasurableBudgetItem,
   totals,
   type DeductionLine,
