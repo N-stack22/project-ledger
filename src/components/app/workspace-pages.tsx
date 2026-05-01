@@ -1921,8 +1921,7 @@ export function MetradosPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-[50px]">N°</TableHead>
-                            <TableHead className="min-w-[200px]">Descripción</TableHead>
-                            <TableHead className="min-w-[160px]">Observación / Tramo</TableHead>
+                            <TableHead className="min-w-[240px]">Descripción</TableHead>
                             <TableHead className="w-[70px]">Und.</TableHead>
                             <TableHead className="w-[90px]">Largo</TableHead>
                             <TableHead className="w-[90px]">Ancho</TableHead>
