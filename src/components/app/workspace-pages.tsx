@@ -1254,7 +1254,7 @@ export function BudgetsPage() {
   return (
     <AuthGuard>
       <PageLayout title="Importación de presupuesto" description="Carga flexible de Excel para crear partidas base por proyecto.">
-        <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="flex flex-col gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Cargar Excel</CardTitle>
