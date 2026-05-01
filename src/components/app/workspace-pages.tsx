@@ -1439,14 +1439,21 @@ function computeLinePartialLocal(line: Partial<MetradoLineRow>): number {
   return Math.round(r * 10000) / 10000;
 }
 
-/** Deriva el código padre a partir de un item_code tipo "01.02.03" -> "01.02". */
-function parentCodeOf(code: string | null | undefined): string | null {
-  if (!code) return null;
-  const parts = code.trim().split(".");
-  if (parts.length <= 1) return null;
-  return parts.slice(0, -1).join(".");
+/** Compara códigos jerárquicos tipo "01.02.03" de forma natural. */
+function compareItemCodes(a: string, b: string): number {
+  const pa = a.split(".");
+  const pb = b.split(".");
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = Number(pa[i] ?? "0");
+    const nb = Number(pb[i] ?? "0");
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+    const sa = pa[i] ?? "";
+    const sb = pb[i] ?? "";
+    if (sa !== sb) return sa < sb ? -1 : 1;
+  }
+  return 0;
 }
-
 
 export function MetradosPage() {
   const { projects, budgetItems } = useWorkspace();
@@ -1456,16 +1463,56 @@ export function MetradosPage() {
   const [periodId, setPeriodId] = useState<string>("");
   const [lines, setLines] = useState<MetradoLineRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [onlyExecutables, setOnlyExecutables] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
-  const items = useMemo(() => {
-    const projectItems = budgetItems.filter((b) => b.project_id === projectId);
-    const parentSet = buildParentCodeSet(projectItems.map((b) => ({ item_code: b.item_code })));
-    return projectItems
-      // Solo nodos hoja estructurales son ejecutables (medibles).
-      .filter((b) => isLeafByCode(b.item_code, parentSet))
-      .slice()
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  }, [budgetItems, projectId]);
+  const projectItems = useMemo(
+    () => budgetItems.filter((b) => b.project_id === projectId),
+    [budgetItems, projectId],
+  );
+
+  const parentSet = useMemo(
+    () => buildParentCodeSet(projectItems.map((b) => ({ item_code: b.item_code }))),
+    [projectItems],
+  );
+
+  // Items hoja (ejecutables/medibles) — única fuente para alta de líneas
+  const leafItems = useMemo(
+    () =>
+      projectItems
+        .filter((b) => isLeafByCode(b.item_code, parentSet))
+        .slice()
+        .sort((a, b) => compareItemCodes(a.item_code ?? "", b.item_code ?? "")),
+    [projectItems, parentSet],
+  );
+
+  // Items para mostrar en árbol (todos por defecto, o solo hojas si se filtra)
+  const visibleItems = useMemo(() => {
+    const base = onlyExecutables ? leafItems : projectItems.slice();
+    base.sort((a, b) => compareItemCodes(a.item_code ?? "", b.item_code ?? ""));
+    if (!search.trim()) return base;
+    const q = search.trim().toLowerCase();
+    return base.filter((it) => {
+      const code = (it.item_code ?? "").toLowerCase();
+      const desc = (it.description ?? "").toLowerCase();
+      return code.includes(q) || desc.includes(q);
+    });
+  }, [leafItems, projectItems, onlyExecutables, search]);
+
+  // Si la búsqueda matchea algo, expandir automáticamente sus padres
+  const matchedAncestors = useMemo(() => {
+    if (!search.trim()) return new Set<string>();
+    const set = new Set<string>();
+    for (const it of visibleItems) {
+      const code = it.item_code ?? "";
+      const parts = code.split(".");
+      for (let i = 1; i < parts.length; i++) set.add(parts.slice(0, i).join("."));
+    }
+    return set;
+  }, [visibleItems, search]);
 
   useEffect(() => {
     if (!projectId) {
@@ -1501,25 +1548,6 @@ export function MetradosPage() {
         setLoading(false);
       });
   }, [periodId]);
-
-  const groupedItems = useMemo(() => {
-    type Group = { code: string; label: string; items: typeof items };
-    const map = new Map<string, Group>();
-    for (const it of items) {
-      const parent = parentCodeOf(it.item_code) ?? "—";
-      const parentItem = parent !== "—" ? items.find((p) => p.item_code === parent) : null;
-      const label = parentItem
-        ? `${parentItem.item_code} · ${parentItem.description}`
-        : parent === "—"
-        ? "Partidas raíz"
-        : `Partida ${parent}`;
-      if (!map.has(parent)) map.set(parent, { code: parent, label, items: [] });
-      map.get(parent)!.items.push(it);
-    }
-    return Array.from(map.values()).sort((a, b) =>
-      a.code.localeCompare(b.code, "es", { numeric: true }),
-    );
-  }, [items]);
 
   async function addLine(itemId: string) {
     if (!periodId || !user) return;
@@ -1573,11 +1601,137 @@ export function MetradosPage() {
     return m;
   }, [lines]);
 
+  // Conteo de líneas por código (incluye descendientes) para mostrar en agrupadores
+  const itemsByCode = useMemo(() => {
+    const m = new Map<string, BudgetItemRow>();
+    for (const it of projectItems) {
+      const c = (it.item_code ?? "").trim();
+      if (c) m.set(c, it);
+    }
+    return m;
+  }, [projectItems]);
+
+  function toggleGroup(code: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
+
+  function isExpanded(code: string) {
+    if (search.trim() && matchedAncestors.has(code)) return true;
+    return expandedGroups.has(code);
+  }
+
+  const project = projects.find((p) => p.id === projectId);
+  const period = periods.find((p) => p.id === periodId);
+  const activeItem = activeItemId ? projectItems.find((it) => it.id === activeItemId) : null;
+  const activeItemLines = activeItem ? linesByItem.get(activeItem.id) ?? [] : [];
+  const activeTotal = activeItemLines.reduce((acc, l) => acc + Number(l.partial || 0), 0);
+
+  // Render del árbol jerárquico (lista plana ordenada con indentación e iconos)
+  const treeRows = useMemo(() => {
+    type Row = { item: BudgetItemRow; isLeafRow: boolean; level: number; visible: boolean };
+    const sorted = projectItems
+      .slice()
+      .sort((a, b) => compareItemCodes(a.item_code ?? "", b.item_code ?? ""));
+
+    // Determine which items pass the search/filter individually
+    const visibleIds = new Set(visibleItems.map((i) => i.id));
+
+    // For ancestors of visible items, force them to be shown so the tree is navigable
+    const forceShow = new Set<string>();
+    for (const it of visibleItems) {
+      const code = it.item_code ?? "";
+      const parts = code.split(".");
+      for (let i = 1; i < parts.length; i++) {
+        const ancestor = parts.slice(0, i).join(".");
+        const a = itemsByCode.get(ancestor);
+        if (a) forceShow.add(a.id);
+      }
+    }
+
+    const rows: Row[] = [];
+    for (const it of sorted) {
+      const code = it.item_code ?? "";
+      if (!code) continue;
+      const level = code.split(".").length - 1;
+      const isLeafRow = isLeafByCode(code, parentSet);
+
+      // Visibilidad por filtros
+      const passesFilter = visibleIds.has(it.id) || forceShow.has(it.id);
+      if (!passesFilter) continue;
+
+      // Visibilidad por estado expandido: ocultar si algún ancestro está colapsado
+      const parts = code.split(".");
+      let parentCollapsed = false;
+      for (let i = 1; i < parts.length; i++) {
+        const ancestor = parts.slice(0, i).join(".");
+        if (itemsByCode.has(ancestor) && !isExpanded(ancestor)) {
+          parentCollapsed = true;
+          break;
+        }
+      }
+      if (parentCollapsed) continue;
+
+      rows.push({ item: it, isLeafRow, level, visible: true });
+    }
+    return rows;
+  }, [projectItems, parentSet, visibleItems, itemsByCode, expandedGroups, search, matchedAncestors]);
+
+  async function handleGeneratePdf() {
+    if (!project || !period) {
+      toast.error("Selecciona un proyecto y un período antes de generar el documento.");
+      return;
+    }
+    setGeneratingPdf(true);
+    const tid = toast.loading("Generando documento de Metrados de partidas ejecutadas…");
+    try {
+      const { generateMetradosPdf } = await import("@/lib/metrados-pdf");
+      const res = await generateMetradosPdf({
+        project,
+        period: {
+          id: period.id,
+          period_number: period.period_number,
+          date_from: period.date_from,
+          date_to: period.date_to,
+        },
+        items: projectItems,
+        currentLines: lines as any,
+      });
+      toast.dismiss(tid);
+      toast.success("Documento generado correctamente.");
+      const a = document.createElement("a");
+      a.href = res.url;
+      a.download = res.fileName;
+      a.target = "_blank";
+      a.rel = "noreferrer noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e: any) {
+      toast.dismiss(tid);
+      console.error("[MetradosPdf] failed", e);
+      toast.error(e?.message ?? "Error generando el documento.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
   return (
     <AuthGuard>
       <PageLayout
         title="Metrados"
-        description="Metrados de partidas ejecutadas. Captura por partida con dimensiones (largo, ancho, alto), número de elementos, parcial y total."
+        description="Captura de metrados por partida ejecutable. La descripción de cada partida proviene del presupuesto importado."
+        actions={
+          projectId && periodId ? (
+            <Button onClick={() => void handleGeneratePdf()} disabled={generatingPdf}>
+              {generatingPdf ? "Generando…" : "Generar PDF metrados"}
+            </Button>
+          ) : null
+        }
       >
         <Card className="mb-6">
           <CardHeader>
@@ -1586,7 +1740,7 @@ export function MetradosPage() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium">Proyecto</label>
-              <Select value={projectId} onValueChange={setProjectId}>
+              <Select value={projectId} onValueChange={(v) => { setProjectId(v); setActiveItemId(null); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona proyecto" />
                 </SelectTrigger>
@@ -1623,158 +1777,264 @@ export function MetradosPage() {
         </Card>
 
         {projectId && periodId ? (
-          <div className="space-y-6">
-            {groupedItems.map((group) => (
-              <Card key={group.code}>
-                <CardHeader>
-                  <CardTitle className="text-base">
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground">Partida principal</span>
-                    <div className="mt-1 font-semibold">{group.label}</div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {group.items.map((item) => {
-                    const itemLines = linesByItem.get(item.id) ?? [];
-                    const total = itemLines.reduce((acc, l) => acc + Number(l.partial || 0), 0);
-                    return (
-                      <div key={item.id} className="rounded-md border border-border">
-                        <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/40 px-4 py-3">
-                          <div className="min-w-0">
-                            <div className="text-xs text-muted-foreground">
-                              Subpartida de <span className="font-medium">{group.label}</span>
-                            </div>
-                            <div className="font-medium">
-                              <span className="mr-2 font-mono text-sm text-muted-foreground">
-                                {item.item_code ?? "—"}
+          <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+            {/* Panel lateral: árbol jerárquico de partidas */}
+            <Card className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
+              <CardHeader className="space-y-3">
+                <CardTitle className="text-base">Partidas del proyecto</CardTitle>
+                <Input
+                  placeholder="Buscar por ítem o descripción…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={onlyExecutables}
+                      onChange={(e) => setOnlyExecutables(e.target.checked)}
+                    />
+                    Solo ítems ejecutables
+                  </label>
+                  <button
+                    type="button"
+                    className="text-primary underline-offset-2 hover:underline"
+                    onClick={() => setExpandedGroups(new Set(itemsByCode.keys()))}
+                  >
+                    Expandir todo
+                  </button>
+                  <button
+                    type="button"
+                    className="text-primary underline-offset-2 hover:underline"
+                    onClick={() => setExpandedGroups(new Set())}
+                  >
+                    Contraer todo
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {leafItems.length} ítems ejecutables · {projectItems.length} totales
+                </p>
+              </CardHeader>
+              <CardContent className="lg:max-h-[calc(100vh-22rem)] lg:overflow-y-auto">
+                {treeRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {projectItems.length === 0
+                      ? "Este proyecto no tiene partidas. Importa primero el presupuesto."
+                      : "Sin coincidencias para la búsqueda."}
+                  </p>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {treeRows.map(({ item, isLeafRow, level }) => {
+                      const code = item.item_code ?? "";
+                      const open = isExpanded(code);
+                      const isActive = activeItemId === item.id;
+                      const lineCount = linesByItem.get(item.id)?.length ?? 0;
+                      return (
+                        <li key={item.id}>
+                          <div
+                            className={`flex items-start gap-1 rounded px-1.5 py-1 text-sm ${
+                              isActive ? "bg-primary/10" : "hover:bg-muted/60"
+                            }`}
+                            style={{ paddingLeft: 6 + level * 12 }}
+                          >
+                            {!isLeafRow ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleGroup(code)}
+                                className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+                                aria-label={open ? "Contraer" : "Expandir"}
+                              >
+                                {open ? "▾" : "▸"}
+                              </button>
+                            ) : (
+                              <span className="mt-0.5 inline-block h-4 w-4 shrink-0" />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => isLeafRow && setActiveItemId(item.id)}
+                              disabled={!isLeafRow}
+                              className={`flex min-w-0 flex-1 flex-col text-left ${
+                                isLeafRow ? "cursor-pointer" : "cursor-default"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="font-mono text-xs text-muted-foreground">{code}</span>
+                                {isLeafRow && lineCount > 0 ? (
+                                  <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                                    {lineCount}
+                                  </Badge>
+                                ) : null}
                               </span>
-                              {item.description}
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              Und: <span className="font-medium text-foreground">{item.unit}</span> · Meta:{" "}
-                              {formatNumber(Number(item.base_quantity), 4)}
-                            </div>
+                              <span
+                                className={`truncate text-xs ${
+                                  isLeafRow ? "text-foreground" : "font-semibold uppercase text-foreground"
+                                }`}
+                                title={item.description}
+                              >
+                                {item.description}
+                              </span>
+                            </button>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => addLine(item.id)}>
-                            + Agregar línea
-                          </Button>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[60px]">Ítem</TableHead>
-                                <TableHead className="min-w-[180px]">Descripción</TableHead>
-                                <TableHead className="w-[70px]">Und.</TableHead>
-                                <TableHead className="w-[90px]">Largo</TableHead>
-                                <TableHead className="w-[90px]">Ancho</TableHead>
-                                <TableHead className="w-[90px]">Alt.</TableHead>
-                                <TableHead className="w-[90px]">N° Elem.</TableHead>
-                                <TableHead className="w-[110px] text-right">Parcial</TableHead>
-                                <TableHead className="w-[60px]" />
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {itemLines.length === 0 ? (
-                                <TableRow>
-                                  <TableCell colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
-                                    Sin líneas. Usa “+ Agregar línea” para iniciar el metrado de esta partida.
-                                  </TableCell>
-                                </TableRow>
-                              ) : (
-                                itemLines.map((line, idx) => (
-                                  <TableRow key={line.id}>
-                                    <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
-                                    <TableCell>
-                                      <Input
-                                        value={line.description ?? ""}
-                                        placeholder="Ej. Tramo A, eje 1-3…"
-                                        onChange={(e) => updateLine(line.id, { description: e.target.value })}
-                                      />
-                                    </TableCell>
-                                    <TableCell className="text-sm">{item.unit}</TableCell>
-                                    <TableCell>
-                                      <Input
-                                        type="number"
-                                        step="0.01"
-                                        value={line.length ?? 0}
-                                        onChange={(e) =>
-                                          updateLine(line.id, {
-                                            length: e.target.value === "" ? null : Number(e.target.value),
-                                          })
-                                        }
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Input
-                                        type="number"
-                                        step="0.01"
-                                        value={line.width ?? 0}
-                                        onChange={(e) =>
-                                          updateLine(line.id, {
-                                            width: e.target.value === "" ? null : Number(e.target.value),
-                                          })
-                                        }
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Input
-                                        type="number"
-                                        step="0.01"
-                                        value={line.height ?? 0}
-                                        onChange={(e) =>
-                                          updateLine(line.id, {
-                                            height: e.target.value === "" ? null : Number(e.target.value),
-                                          })
-                                        }
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Input
-                                        type="number"
-                                        step="1"
-                                        value={line.num_elements ?? 1}
-                                        onChange={(e) =>
-                                          updateLine(line.id, {
-                                            num_elements: e.target.value === "" ? null : Number(e.target.value),
-                                          })
-                                        }
-                                      />
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono">
-                                      {formatNumber(Number(line.partial || 0), 4)}
-                                    </TableCell>
-                                    <TableCell>
-                                      <Button size="sm" variant="ghost" onClick={() => void deleteLine(line.id)}>
-                                        ✕
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-                                ))
-                              )}
-                              <TableRow className="bg-muted/30">
-                                <TableCell colSpan={7} className="text-right text-sm font-medium">
-                                  Total {item.unit}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Panel principal: edición de la partida activa */}
+            <div className="space-y-4">
+              {!activeItem ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                    Selecciona una subpartida ejecutable del panel izquierdo para registrar líneas de metrado.
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader className="space-y-2">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                      Subpartida seleccionada
+                    </div>
+                    <CardTitle className="flex flex-wrap items-baseline gap-2 text-base">
+                      <span className="font-mono text-sm text-muted-foreground">
+                        {activeItem.item_code ?? "—"}
+                      </span>
+                      <span>{activeItem.description}</span>
+                    </CardTitle>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Und: <span className="font-medium text-foreground">{activeItem.unit || "—"}</span></span>
+                      <span>Metrado base: <span className="font-medium text-foreground">{formatNumber(Number(activeItem.base_quantity || 0), 4)}</span></span>
+                      <span>Acumulado período: <span className="font-medium text-foreground">{formatNumber(activeTotal, 4)}</span></span>
+                      <span>Líneas: <span className="font-medium text-foreground">{activeItemLines.length}</span></span>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="mb-3 flex justify-end">
+                      <Button size="sm" variant="outline" onClick={() => void addLine(activeItem.id)}>
+                        + Agregar línea de metrado
+                      </Button>
+                    </div>
+                    <div className="overflow-x-auto rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[50px]">N°</TableHead>
+                            <TableHead className="min-w-[200px]">Descripción</TableHead>
+                            <TableHead className="min-w-[160px]">Observación / Tramo</TableHead>
+                            <TableHead className="w-[70px]">Und.</TableHead>
+                            <TableHead className="w-[90px]">Largo</TableHead>
+                            <TableHead className="w-[90px]">Ancho</TableHead>
+                            <TableHead className="w-[90px]">Alt.</TableHead>
+                            <TableHead className="w-[90px]">N° Elem.</TableHead>
+                            <TableHead className="w-[110px] text-right">Parcial</TableHead>
+                            <TableHead className="w-[50px]" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activeItemLines.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={10} className="py-6 text-center text-sm text-muted-foreground">
+                                Sin líneas. Usa “+ Agregar línea de metrado” para iniciar la captura.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            activeItemLines.map((line, idx) => (
+                              <TableRow key={line.id}>
+                                <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
+                                {/* Descripción = nombre de la subpartida (auto, solo lectura) */}
+                                <TableCell className="text-sm">
+                                  <span className="font-mono text-xs text-muted-foreground">
+                                    {activeItem.item_code}
+                                  </span>{" "}
+                                  {activeItem.description}
                                 </TableCell>
-                                <TableCell className="text-right font-mono font-semibold">
-                                  {formatNumber(total, 4)}
+                                {/* Observación / Tramo = campo libre del usuario */}
+                                <TableCell>
+                                  <Input
+                                    value={line.observation ?? ""}
+                                    placeholder="Ej. Tramo A, eje 1-3…"
+                                    onChange={(e) => updateLine(line.id, { observation: e.target.value })}
+                                  />
                                 </TableCell>
-                                <TableCell />
+                                <TableCell className="text-sm">{activeItem.unit}</TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={line.length ?? 0}
+                                    onChange={(e) =>
+                                      updateLine(line.id, {
+                                        length: e.target.value === "" ? null : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={line.width ?? 0}
+                                    onChange={(e) =>
+                                      updateLine(line.id, {
+                                        width: e.target.value === "" ? null : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={line.height ?? 0}
+                                    onChange={(e) =>
+                                      updateLine(line.id, {
+                                        height: e.target.value === "" ? null : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    step="1"
+                                    value={line.num_elements ?? 1}
+                                    onChange={(e) =>
+                                      updateLine(line.id, {
+                                        num_elements: e.target.value === "" ? null : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {formatNumber(Number(line.partial || 0), 4)}
+                                </TableCell>
+                                <TableCell>
+                                  <Button size="sm" variant="ghost" onClick={() => void deleteLine(line.id)}>
+                                    ✕
+                                  </Button>
+                                </TableCell>
                               </TableRow>
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            ))}
-            {!groupedItems.length ? (
-              <p className="text-sm text-muted-foreground">
-                Este proyecto no tiene partidas en el presupuesto. Importa primero el presupuesto.
-              </p>
-            ) : null}
-            {loading ? <p className="text-sm text-muted-foreground">Cargando líneas…</p> : null}
+                            ))
+                          )}
+                          <TableRow className="bg-muted/30">
+                            <TableCell colSpan={8} className="text-right text-sm font-medium">
+                              Total {activeItem.unit}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-semibold">
+                              {formatNumber(activeTotal, 4)}
+                            </TableCell>
+                            <TableCell />
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {loading ? <p className="text-sm text-muted-foreground">Cargando líneas…</p> : null}
+            </div>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
