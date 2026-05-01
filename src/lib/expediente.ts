@@ -132,19 +132,62 @@ export function buildValuationTable(args: {
     });
 }
 
-export function isMeasurableBudgetItem(item: BudgetItemRow) {
+/**
+ * Construye un set con los códigos que tienen al menos un descendiente
+ * (es decir, otra fila cuyo código empieza con `code + "."`). Se usa para
+ * decidir qué filas son hojas estructurales — independientemente de unit/price.
+ */
+export function buildParentCodeSet(items: Array<{ item_code: string | null }>): Set<string> {
+  const codes = items
+    .map((i) => (i.item_code ?? "").trim())
+    .filter((c) => c.length > 0);
+  const codeSet = new Set(codes);
+  const parents = new Set<string>();
+  for (const c of codes) {
+    const parts = c.split(".");
+    for (let i = 1; i < parts.length; i++) {
+      const ancestor = parts.slice(0, i).join(".");
+      if (codeSet.has(ancestor)) parents.add(ancestor);
+    }
+  }
+  return parents;
+}
+
+/** Una fila es hoja estructural si su código existe y ninguna otra fila lo tiene como prefijo. */
+export function isLeafByCode(code: string | null | undefined, parentSet: Set<string>): boolean {
+  const c = (code ?? "").trim();
+  if (!c) return false;
+  return !parentSet.has(c);
+}
+
+/**
+ * Compatibilidad: una partida es "ejecutable/medible" únicamente si es hoja estructural.
+ * Mantenemos el nombre por compatibilidad con páginas que ya lo importan, pero ahora
+ * requiere el set de padres calculado a partir de TODAS las partidas del proyecto.
+ */
+export function isMeasurableBudgetItem(
+  item: BudgetItemRow,
+  parentSet?: Set<string>,
+): boolean {
+  if (parentSet) return isLeafByCode(item.item_code, parentSet);
+  // Fallback heurístico (cuando no se pasa el set): hoja si tiene unit o price.
   return Boolean((item.unit ?? "").trim()) || Number(item.base_quantity || 0) > 0 || Number(item.unit_price || 0) > 0;
 }
 
 export function totals(rows: ValuationItemSummary[]) {
+  const parentSet = buildParentCodeSet(rows.map((r) => ({ item_code: r.item.item_code })));
   return rows.reduce(
-    (acc, r) => ({
-      base: acc.base + (isMeasurableBudgetItem(r.item) ? Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0) : 0),
-      prev: acc.prev + r.amountPrev,
-      current: acc.current + r.amountCurrent,
-      accum: acc.accum + r.amountAccum,
-      balance: acc.balance + r.amountBalance,
-    }),
+    (acc, r) => {
+      const isLeaf = isLeafByCode(r.item.item_code, parentSet);
+      // Solo las hojas suman al base/period/accum — los padres son agrupadores.
+      return {
+        base: acc.base + (isLeaf ? Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0) : 0),
+        prev: acc.prev + (isLeaf ? r.amountPrev : 0),
+        current: acc.current + (isLeaf ? r.amountCurrent : 0),
+        accum: acc.accum + (isLeaf ? r.amountAccum : 0),
+        balance: acc.balance + (isLeaf ? r.amountBalance : 0),
+      };
+    },
     { base: 0, prev: 0, current: 0, accum: 0, balance: 0 },
   );
 }
