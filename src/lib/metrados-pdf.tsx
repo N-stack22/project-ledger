@@ -286,19 +286,30 @@ export async function generateMetradosPdf(args: GenerateMetradosPdfArgs) {
   );
 
   // ============================================================
-  // Sección 2: PLANILLAS DE METRADOS (por partida ejecutada)
+  // Sección 2: PLANILLAS DE METRADOS (planilla técnica continua)
   // ============================================================
-  // Columnas: ítem | descripción | und | largo | ancho | alt | n° elem | parcial
+  // Columnas (suma ≈ 539 pt, A4 portrait con padding 28):
+  // PARTIDA 55 | DESCRIPCIÓN 175 | UND 32 | LARGO 48 | ANCHO 44 | ALT 40 | N°ELEM 40 | PARCIAL 50 | TOTAL 55
   const planWidths = {
-    n: 30,
-    desc: 215,
-    und: 38,
-    largo: 50,
-    ancho: 50,
-    alto: 50,
-    nelem: 45,
-    parcial: 60,
+    partida: 55,
+    desc: 175,
+    und: 32,
+    largo: 48,
+    ancho: 44,
+    alto: 40,
+    nelem: 40,
+    parcial: 50,
+    total: 55,
   };
+  const planDimsWidth = planWidths.largo + planWidths.ancho + planWidths.alto;
+  const planTotalWidth =
+    planWidths.partida +
+    planWidths.desc +
+    planWidths.und +
+    planDimsWidth +
+    planWidths.nelem +
+    planWidths.parcial +
+    planWidths.total;
 
   const itemsById = new Map(items.map((it) => [it.id, it]));
 
