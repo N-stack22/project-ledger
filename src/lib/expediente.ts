@@ -205,61 +205,54 @@ export type SummaryHierarchyRow = {
 
 /**
  * Construye la hoja resumen jerárquica de metrados.
- * - Incluye los niveles padre (01, 03.02, 03.02.01...) aunque no tengan datos.
- * - Solo los nodos hoja con metrado > 0 muestran TOTAL.
-  * - Los padres se toman de las partidas importadas; no se crean descripciones artificiales.
+ * - Hoja estructural = código que no es prefijo de ningún otro.
+ * - Solo hojas pueden tener TOTAL (qtyCurrent). Padres son agrupadores.
+ * - Se incluyen TODAS las hojas con metrado > 0 más TODOS sus ancestros.
  */
 export function buildSummaryHierarchy(rows: ValuationItemSummary[]): SummaryHierarchyRow[] {
-  // Indexar partidas por código
   const byCode = new Map<string, ValuationItemSummary>();
   for (const r of rows) {
     const code = (r.item.item_code ?? "").trim();
     if (code) byCode.set(code, r);
   }
 
-  // Hojas con datos del período
+  const parentSet = buildParentCodeSet(rows.map((r) => ({ item_code: r.item.item_code })));
+
+  // Hojas estructurales con metrado en el período
   const leaves = rows
-    .filter((r) => (r.item.item_code ?? "").trim() && r.qtyCurrent > 0)
+    .filter((r) => {
+      const code = (r.item.item_code ?? "").trim();
+      return code && isLeafByCode(code, parentSet) && r.qtyCurrent > 0;
+    })
     .sort((a, b) => compareCodes(a.item.item_code!, b.item.item_code!));
 
   const out: SummaryHierarchyRow[] = [];
   const seen = new Set<string>();
 
+  const pushRow = (code: string, level: number, isLeafRow: boolean) => {
+    if (seen.has(code)) return;
+    const ref = byCode.get(code);
+    seen.add(code);
+    out.push({
+      key: code,
+      code,
+      description: ref?.item.description ?? "",
+      unit: isLeafRow ? (ref?.item.unit ?? "") : "",
+      level,
+      isLeaf: isLeafRow,
+      total: isLeafRow ? (ref?.qtyCurrent ?? 0) : null,
+      itemId: ref?.item.id ?? null,
+    });
+  };
+
   for (const leaf of leaves) {
     const code = leaf.item.item_code!.trim();
     const parts = code.split(".");
-    // Emitir ancestros en orden
     for (let i = 1; i < parts.length; i++) {
       const ancestorCode = parts.slice(0, i).join(".");
-      if (seen.has(ancestorCode)) continue;
-      const parent = byCode.get(ancestorCode);
-      if (!parent) continue;
-      seen.add(ancestorCode);
-      out.push({
-        key: ancestorCode,
-        code: ancestorCode,
-        description: parent?.item.description ?? "",
-        unit: parent?.item.unit ?? "",
-        level: i - 1,
-        isLeaf: false,
-        total: null,
-        itemId: parent?.item.id ?? null,
-      });
+      if (byCode.has(ancestorCode)) pushRow(ancestorCode, i - 1, false);
     }
-    // Emitir hoja
-    if (!seen.has(code)) {
-      seen.add(code);
-      out.push({
-        key: code,
-        code,
-        description: leaf.item.description,
-        unit: leaf.item.unit,
-        level: parts.length - 1,
-        isLeaf: true,
-        total: leaf.qtyCurrent,
-        itemId: leaf.item.id,
-      });
-    }
+    pushRow(code, parts.length - 1, true);
   }
   return out;
 }
