@@ -1934,7 +1934,7 @@ export function MetradosPage() {
                         <TableBody>
                           {activeItemLines.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={10} className="py-6 text-center text-sm text-muted-foreground">
+                              <TableCell colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
                                 Sin líneas. Usa “+ Agregar línea de metrado” para iniciar la captura.
                               </TableCell>
                             </TableRow>
@@ -1948,14 +1948,6 @@ export function MetradosPage() {
                                     {activeItem.item_code}
                                   </span>{" "}
                                   {activeItem.description}
-                                </TableCell>
-                                {/* Observación / Tramo = campo libre del usuario */}
-                                <TableCell>
-                                  <Input
-                                    value={line.observation ?? ""}
-                                    placeholder="Ej. Tramo A, eje 1-3…"
-                                    onChange={(e) => updateLine(line.id, { observation: e.target.value })}
-                                  />
                                 </TableCell>
                                 <TableCell className="text-sm">{activeItem.unit}</TableCell>
                                 <TableCell>
