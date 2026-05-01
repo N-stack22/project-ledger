@@ -177,9 +177,9 @@ export function AppShell() {
     <WorkspaceProvider>
       <SidebarProvider defaultOpen>
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className="min-w-0 overflow-x-hidden">
           <AppTopbar />
-          <div className="flex-1 px-4 py-6 md:px-6">
+          <div className="min-w-0 flex-1 px-4 py-6 md:px-6">
             <Outlet />
           </div>
         </SidebarInset>
