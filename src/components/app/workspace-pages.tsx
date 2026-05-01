@@ -1920,8 +1920,8 @@ export function MetradosPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[50px]">N°</TableHead>
-                            <TableHead className="min-w-[240px]">Descripción</TableHead>
+                            <TableHead className="w-[110px]">Partida</TableHead>
+                            <TableHead className="min-w-[220px]">Descripción</TableHead>
                             <TableHead className="w-[70px]">Und.</TableHead>
                             <TableHead className="w-[90px]">Largo</TableHead>
                             <TableHead className="w-[90px]">Ancho</TableHead>
@@ -1932,29 +1932,43 @@ export function MetradosPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
+                          {/* Encabezado de la subpartida (una sola vez) */}
+                          <TableRow className="bg-muted/40">
+                            <TableCell className="font-mono text-sm font-semibold">
+                              {activeItem.item_code ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-sm font-semibold">
+                              {activeItem.description}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">{activeItem.unit}</TableCell>
+                            <TableCell colSpan={6} />
+                          </TableRow>
                           {activeItemLines.length === 0 ? (
                             <TableRow>
                               <TableCell colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
-                                Sin líneas. Usa “+ Agregar línea de metrado” para iniciar la captura.
+                                Sin detalles de cálculo. Usa “+ Agregar línea de metrado” para añadir el sustento (tramo, sector, etc.).
                               </TableCell>
                             </TableRow>
                           ) : (
-                            activeItemLines.map((line, idx) => (
+                            activeItemLines.map((line) => (
                               <TableRow key={line.id}>
-                                <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
-                                {/* Descripción = nombre de la subpartida (auto, solo lectura) */}
-                                <TableCell className="text-sm">
-                                  <span className="font-mono text-xs text-muted-foreground">
-                                    {activeItem.item_code}
-                                  </span>{" "}
-                                  {activeItem.description}
+                                <TableCell />
+                                {/* Detalle libre: tramo / ubicación / sector */}
+                                <TableCell>
+                                  <Input
+                                    value={line.description ?? ""}
+                                    placeholder="Tramo, sector, ubicación…"
+                                    onChange={(e) =>
+                                      updateLine(line.id, { description: e.target.value || null })
+                                    }
+                                  />
                                 </TableCell>
-                                <TableCell className="text-sm">{activeItem.unit}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">{activeItem.unit}</TableCell>
                                 <TableCell>
                                   <Input
                                     type="number"
                                     step="0.01"
-                                    value={line.length ?? 0}
+                                    value={line.length ?? ""}
                                     onChange={(e) =>
                                       updateLine(line.id, {
                                         length: e.target.value === "" ? null : Number(e.target.value),
@@ -1966,7 +1980,7 @@ export function MetradosPage() {
                                   <Input
                                     type="number"
                                     step="0.01"
-                                    value={line.width ?? 0}
+                                    value={line.width ?? ""}
                                     onChange={(e) =>
                                       updateLine(line.id, {
                                         width: e.target.value === "" ? null : Number(e.target.value),
@@ -1978,7 +1992,7 @@ export function MetradosPage() {
                                   <Input
                                     type="number"
                                     step="0.01"
-                                    value={line.height ?? 0}
+                                    value={line.height ?? ""}
                                     onChange={(e) =>
                                       updateLine(line.id, {
                                         height: e.target.value === "" ? null : Number(e.target.value),
@@ -2010,7 +2024,7 @@ export function MetradosPage() {
                             ))
                           )}
                           <TableRow className="bg-muted/30">
-                            <TableCell colSpan={8} className="text-right text-sm font-medium">
+                            <TableCell colSpan={7} className="text-right text-sm font-medium">
                               Total {activeItem.unit}
                             </TableCell>
                             <TableCell className="text-right font-mono font-semibold">
