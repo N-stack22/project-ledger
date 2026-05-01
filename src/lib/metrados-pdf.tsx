@@ -340,7 +340,7 @@ export async function generateMetradosPdf(args: GenerateMetradosPdfArgs) {
       { style: styles.thRow } as any,
       h(
         Text,
-        { style: [styles.th, { width: planWidths.partida, textAlign: "center" }, { borderBottomWidth: 0.5, borderBottomColor: COLORS.border }] as any, rowSpan: 2 },
+        { style: [styles.th, { width: planWidths.partida, textAlign: "center" }] as any },
         "PARTIDA",
       ),
       h(
