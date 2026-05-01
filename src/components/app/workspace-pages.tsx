@@ -165,9 +165,9 @@ function SectionTable({ headers, rows }: { headers: string[]; rows: React.ReactN
 
 function ScrollableImportTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
-    <div className="rounded-lg border border-border bg-card">
-      <div className="max-h-[480px] overflow-y-auto overflow-x-auto">
-        <table className="w-full caption-bottom text-sm">
+    <div className="w-full max-w-full overflow-hidden rounded-lg border border-border bg-card">
+      <div className="max-h-[480px] w-full max-w-full overflow-x-auto overflow-y-auto">
+        <table className="min-w-full caption-bottom text-sm">
           <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
             <tr className="border-b border-border">
               {headers.map((header) => (
