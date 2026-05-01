@@ -186,84 +186,61 @@ export async function generateMetradosPdf(args: GenerateMetradosPdfArgs) {
 
   // ============================================================
   // Sección 1: HOJA RESUMEN DE METRADOS
+  // Formato técnico de obra: solo PARTIDA | DESCRIPCIÓN | UND. | TOTAL
+  // - Niveles agrupadores: solo PARTIDA + DESCRIPCIÓN (UND y TOTAL vacíos).
+  // - Hojas (ítems ejecutables): PARTIDA + DESCRIPCIÓN + UND + TOTAL (sin sumar agrupadores).
   // ============================================================
-  // Columnas (suma de anchos = 539 pt aprox para A4 portrait con padding 28):
-  // Ítem 60 | Descripción 230 | Und 35 | Largo 35 | Ancho 35 | Alt 35 | N° 35 | Parcial 40 | Total 34
+  // Suma de anchos ≈ 539 pt (A4 portrait con padding 28).
   const resumenWidths = {
-    code: 60,
-    desc: 230,
-    und: 35,
-    largo: 35,
-    ancho: 35,
-    alto: 35,
-    nelem: 35,
-    parcial: 40,
-    total: 34,
+    partida: 75,
+    desc: 320,
+    und: 60,
+    total: 84,
   };
 
-  // Para la hoja resumen: agregamos una fila por hoja con "Total" = sumatoria del período;
-  // los campos Largo/Ancho/Alt/N°/Parcial se dejan vacíos (corresponden a planillas).
   const valTable = buildValuationTable({ items, currentLines, previousLines });
   const hierarchy = buildSummaryHierarchy(valTable);
 
   const ResumenHeader = h(
     View,
     { style: styles.thRow, fixed: true } as any,
-    h(Text, { style: [styles.th, { width: resumenWidths.code }] as any }, "ÍTEM"),
-    h(Text, { style: [styles.th, { width: resumenWidths.desc }] as any }, "DESCRIPCIÓN"),
+    h(Text, { style: [styles.th, { width: resumenWidths.partida, textAlign: "center" }] as any }, "PARTIDA"),
+    h(Text, { style: [styles.th, { width: resumenWidths.desc, textAlign: "center" }] as any }, "DESCRIPCIÓN"),
     h(Text, { style: [styles.th, { width: resumenWidths.und, textAlign: "center" }] as any }, "UND."),
-    h(Text, { style: [styles.th, { width: resumenWidths.largo, textAlign: "center" }] as any }, "LARGO"),
-    h(Text, { style: [styles.th, { width: resumenWidths.ancho, textAlign: "center" }] as any }, "ANCHO"),
-    h(Text, { style: [styles.th, { width: resumenWidths.alto, textAlign: "center" }] as any }, "ALT."),
-    h(Text, { style: [styles.th, { width: resumenWidths.nelem, textAlign: "center" }] as any }, "N° ELEM."),
-    h(Text, { style: [styles.th, { width: resumenWidths.parcial, textAlign: "right" }] as any }, "PARCIAL"),
     h(
       Text,
-      {
-        style: [styles.th, { width: resumenWidths.total, textAlign: "right", borderRightWidth: 0 }] as any,
-      },
+      { style: [styles.th, { width: resumenWidths.total, textAlign: "center", borderRightWidth: 0 }] as any },
       "TOTAL",
     ),
   );
 
   const resumenBody = hierarchy.map((row, idx) => {
     const isLeaf = row.isLeaf;
-    const indent = "\u00A0\u00A0".repeat(row.level);
+    const indent = "\u00A0\u00A0\u00A0".repeat(row.level);
     const desc = `${indent}${row.description || ""}`;
     if (!isLeaf) {
       return h(
         View,
-        { key: `res-${idx}`, style: styles.parentRow, wrap: false } as any,
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.code }] as any }, row.code),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.desc }] as any }, desc),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.und }] as any }, ""),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.largo }] as any }, ""),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.ancho }] as any }, ""),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.alto }] as any }, ""),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.nelem }] as any }, ""),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.parcial }] as any }, ""),
-        h(Text, { style: [styles.parentCell, { width: resumenWidths.total, borderRightWidth: 0 }] as any }, ""),
+        { key: `res-${idx}`, style: styles.tr, wrap: false } as any,
+        h(Text, { style: [styles.td, { width: resumenWidths.partida, fontFamily: "Helvetica-Bold" }] as any }, row.code),
+        h(
+          Text,
+          { style: [styles.td, { width: resumenWidths.desc, fontFamily: "Helvetica-Bold" }] as any },
+          desc.toUpperCase(),
+        ),
+        h(Text, { style: [styles.td, { width: resumenWidths.und }] as any }, ""),
+        h(Text, { style: [styles.td, { width: resumenWidths.total, borderRightWidth: 0 }] as any }, ""),
       );
     }
     return h(
       View,
-      { key: `res-${idx}`, style: idx % 2 === 0 ? styles.tr : styles.trAlt, wrap: false } as any,
-      h(Text, { style: [styles.td, { width: resumenWidths.code }] as any }, row.code),
+      { key: `res-${idx}`, style: styles.tr, wrap: false } as any,
+      h(Text, { style: [styles.td, { width: resumenWidths.partida }] as any }, row.code),
       h(Text, { style: [styles.td, { width: resumenWidths.desc }] as any }, desc),
       h(Text, { style: [styles.td, { width: resumenWidths.und, textAlign: "center" }] as any }, row.unit || ""),
-      h(Text, { style: [styles.td, { width: resumenWidths.largo, textAlign: "right" }] as any }, ""),
-      h(Text, { style: [styles.td, { width: resumenWidths.ancho, textAlign: "right" }] as any }, ""),
-      h(Text, { style: [styles.td, { width: resumenWidths.alto, textAlign: "right" }] as any }, ""),
-      h(Text, { style: [styles.td, { width: resumenWidths.nelem, textAlign: "right" }] as any }, ""),
-      h(Text, { style: [styles.td, { width: resumenWidths.parcial, textAlign: "right" }] as any }, ""),
       h(
         Text,
-        {
-          style: [
-            styles.td,
-            { width: resumenWidths.total, textAlign: "right", borderRightWidth: 0, fontFamily: "Helvetica-Bold" },
-          ] as any,
-        },
+        { style: [styles.td, { width: resumenWidths.total, textAlign: "right", borderRightWidth: 0 }] as any },
         row.total != null ? formatNum(row.total, 2) : "",
       ),
     );

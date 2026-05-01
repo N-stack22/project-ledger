@@ -443,7 +443,7 @@ function ExpedientePage() {
       {step === 3 && period && project && (() => {
         const parentSet = buildParentCodeSet(valTable.map((r) => ({ item_code: r.item.item_code })));
         const summaryRows = valTable.filter((r) => r.qtyCurrent > 0 || lines.some((l) => l.item_id === r.item.id));
-        const summaryTotal = summaryRows.reduce((s, r) => s + r.amountCurrent, 0);
+        void summaryRows;
         const baseTotal = valTable.reduce(
           (s, r) => s + (isLeafByCode(r.item.item_code, parentSet)
             ? Number(r.item.partial_amount || r.item.base_quantity * r.item.unit_price || 0)
@@ -538,7 +538,7 @@ function ExpedientePage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40">
-                        <TableHead className="w-[120px]">Ítem</TableHead>
+                        <TableHead className="w-[120px]">Partida</TableHead>
                         <TableHead>Descripción</TableHead>
                         <TableHead className="w-[80px]">Und.</TableHead>
                         <TableHead className="w-[120px] text-right">TOTAL</TableHead>
@@ -565,12 +565,6 @@ function ExpedientePage() {
                           </TableCell>
                         </TableRow>
                       ))}
-                      {summaryHierarchy.length > 0 && (
-                        <TableRow className="bg-muted/40 font-semibold">
-                          <TableCell colSpan={3} className="text-right">Importe valorizado del período</TableCell>
-                          <TableCell className="text-right font-mono">{formatMoney(summaryTotal, currency)}</TableCell>
-                        </TableRow>
-                      )}
                     </TableBody>
                   </Table>
                 </div>
