@@ -36,6 +36,7 @@ import {
   valuationStatusLabels,
 } from "@/lib/business";
 import { parseRichTextDocument, stripHtml, type BudgetItemRow } from "@/lib/domain";
+import { buildParentCodeSet, isLeafByCode } from "@/lib/expediente";
 import { AuthGuard } from "@/components/app/auth-guard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1367,9 +1368,6 @@ function parentCodeOf(code: string | null | undefined): string | null {
   return parts.slice(0, -1).join(".");
 }
 
-function isMeasurableBudgetItemLocal(item: BudgetItemRow): boolean {
-  return Boolean((item.unit ?? "").trim()) || Number(item.base_quantity || 0) > 0 || Number(item.unit_price || 0) > 0;
-}
 
 export function MetradosPage() {
   const { projects, budgetItems } = useWorkspace();
@@ -1380,15 +1378,15 @@ export function MetradosPage() {
   const [lines, setLines] = useState<MetradoLineRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const items = useMemo(
-    () =>
-      budgetItems
-        .filter((b) => b.project_id === projectId)
-        .filter(isMeasurableBudgetItemLocal)
-        .slice()
-        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
-    [budgetItems, projectId],
-  );
+  const items = useMemo(() => {
+    const projectItems = budgetItems.filter((b) => b.project_id === projectId);
+    const parentSet = buildParentCodeSet(projectItems.map((b) => ({ item_code: b.item_code })));
+    return projectItems
+      // Solo nodos hoja estructurales son ejecutables (medibles).
+      .filter((b) => isLeafByCode(b.item_code, parentSet))
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }, [budgetItems, projectId]);
 
   useEffect(() => {
     if (!projectId) {
