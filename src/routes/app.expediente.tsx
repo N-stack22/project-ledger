@@ -538,7 +538,7 @@ function ExpedientePage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40">
-                        <TableHead className="w-[120px]">Ítem</TableHead>
+                        <TableHead className="w-[120px]">Partida</TableHead>
                         <TableHead>Descripción</TableHead>
                         <TableHead className="w-[80px]">Und.</TableHead>
                         <TableHead className="w-[120px] text-right">TOTAL</TableHead>
@@ -565,12 +565,6 @@ function ExpedientePage() {
                           </TableCell>
                         </TableRow>
                       ))}
-                      {summaryHierarchy.length > 0 && (
-                        <TableRow className="bg-muted/40 font-semibold">
-                          <TableCell colSpan={3} className="text-right">Importe valorizado del período</TableCell>
-                          <TableCell className="text-right font-mono">{formatMoney(summaryTotal, currency)}</TableCell>
-                        </TableRow>
-                      )}
                     </TableBody>
                   </Table>
                 </div>
