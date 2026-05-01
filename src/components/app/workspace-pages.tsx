@@ -194,6 +194,67 @@ function ScrollableImportTable({ headers, rows }: { headers: string[]; rows: Rea
   );
 }
 
+type BudgetHierarchyItem = {
+  item_code?: string | null;
+  description: string;
+  unit: string;
+  base_quantity: number;
+  unit_price: number;
+  partial_amount: number;
+  hierarchy_level?: number | null;
+  sort_order?: number | null;
+};
+
+function compareBudgetItemCodes(a: string | null | undefined, b: string | null | undefined): number {
+  const codeA = (a ?? "").trim();
+  const codeB = (b ?? "").trim();
+  if (!codeA && !codeB) return 0;
+  if (!codeA) return 1;
+  if (!codeB) return -1;
+
+  const partsA = codeA.split(".");
+  const partsB = codeB.split(".");
+  const length = Math.max(partsA.length, partsB.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const partA = partsA[index];
+    const partB = partsB[index];
+    if (partA == null) return -1;
+    if (partB == null) return 1;
+
+    const numA = Number(partA);
+    const numB = Number(partB);
+    if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) return numA - numB;
+    if (partA !== partB) return partA.localeCompare(partB, "es", { numeric: true, sensitivity: "base" });
+  }
+
+  return 0;
+}
+
+function sortBudgetItemsHierarchically<T extends BudgetHierarchyItem>(items: T[]): T[] {
+  return items.slice().sort((a, b) => {
+    const codeOrder = compareBudgetItemCodes(a.item_code, b.item_code);
+    if (codeOrder !== 0) return codeOrder;
+    return Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+  });
+}
+
+function getBudgetHierarchyStats<T extends BudgetHierarchyItem>(items: T[]) {
+  const parentSet = buildParentCodeSet(items.map((item) => ({ item_code: item.item_code ?? null })));
+  const leafItems = items.filter((item) => isLeafByCode(item.item_code, parentSet));
+  const leafSubtotal = leafItems.reduce((sum, item) => sum + Number(item.partial_amount || 0), 0);
+  return { parentSet, leafItems, leafSubtotal, nodeCount: items.length, leafCount: leafItems.length };
+}
+
+function renderBudgetDescription(item: BudgetHierarchyItem) {
+  const level = item.hierarchy_level ?? Math.max((item.item_code ?? "").split(".").filter(Boolean).length - 1, 0);
+  return (
+    <span className="block" style={{ paddingInlineStart: `${Math.min(level, 6) * 1.25}rem` }}>
+      {item.description || "—"}
+    </span>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { signIn, signUp, isAuthenticated, loading } = useAuth();
@@ -1222,7 +1283,9 @@ export function BudgetsPage() {
             </CardContent>
           </Card>
           {preview ? (() => {
-            const grandTotal = preview.rows.reduce((acc, item) => acc + Number(item.partial_amount || 0), 0);
+            const sortedPreviewRows = sortBudgetItemsHierarchically(preview.rows);
+            const previewStats = getBudgetHierarchyStats(preview.rows);
+            const grandTotal = previewStats.leafSubtotal;
             return (
               <Card>
                 <CardHeader>
@@ -1234,28 +1297,35 @@ export function BudgetsPage() {
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-md border border-border bg-muted/40 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Total de partidas detectadas</p>
-                      <p className="text-2xl font-semibold text-foreground">{preview.rows.length}</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Ítems hoja ejecutables</p>
+                      <p className="text-2xl font-semibold text-foreground">{previewStats.leafCount}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{previewStats.nodeCount} nodos jerárquicos importados</p>
                     </div>
                     <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Subtotal general del presupuesto</p>
                       <p className="text-2xl font-semibold text-primary">{formatCurrency(grandTotal)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Calculado solo con nodos hoja</p>
                     </div>
                   </div>
                   <ScrollableImportTable
-                    headers={["Ítem", "Descripción", "Unidad", "Metrado", "Precio unitario", "Parcial"]}
+                    headers={["Ítem", "Descripción", "Tipo", "Unidad", "Metrado", "Precio unitario", "Parcial"]}
                     rows={[
-                      ...preview.rows.map((item) => [
+                      ...sortedPreviewRows.map((item) => {
+                        const isLeaf = isLeafByCode(item.item_code, previewStats.parentSet);
+                        return [
                         item.item_code || "—",
-                        item.description,
-                        item.unit,
-                        formatNumber(Number(item.base_quantity), 4),
-                        formatCurrency(Number(item.unit_price)),
-                        formatCurrency(Number(item.partial_amount)),
-                      ]),
+                        renderBudgetDescription(item),
+                        isLeaf ? "Ejecutable" : "Agrupador",
+                        isLeaf ? item.unit : "",
+                        isLeaf ? formatNumber(Number(item.base_quantity), 4) : "",
+                        isLeaf ? formatCurrency(Number(item.unit_price)) : "",
+                        isLeaf ? formatCurrency(Number(item.partial_amount)) : "",
+                      ];
+                    }),
                       [
                         "",
                         <span className="font-semibold text-foreground">Subtotal general</span>,
+                        <span className="font-semibold text-foreground">Solo hojas</span>,
                         "",
                         "",
                         "",
@@ -1264,14 +1334,16 @@ export function BudgetsPage() {
                     ]}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {preview.rows.length} partidas mostradas · scroll vertical activo · subtotal general = suma de parciales.
+                    {previewStats.nodeCount} nodos mostrados · {previewStats.leafCount} ítems hoja · subtotal general sin doble conteo.
                   </p>
                 </CardContent>
               </Card>
             );
           })() : null}
           {(() => {
-            const registeredTotal = currentItems.reduce((sum, item) => sum + Number(item.partial_amount || 0), 0);
+            const sortedCurrentItems = sortBudgetItemsHierarchically(currentItems);
+            const registeredStats = getBudgetHierarchyStats(currentItems);
+            const registeredTotal = registeredStats.leafSubtotal;
             return (
               <Card>
                 <CardHeader>
@@ -1283,31 +1355,38 @@ export function BudgetsPage() {
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-lg border border-border bg-muted/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Total de partidas registradas</p>
-                      <p className="mt-1 text-2xl font-semibold text-foreground">Se registraron {currentItems.length} partidas</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Ítems hoja ejecutables</p>
+                      <p className="mt-1 text-2xl font-semibold text-foreground">{registeredStats.leafCount} partidas finales</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{registeredStats.nodeCount} nodos jerárquicos registrados</p>
                     </div>
                     <div className="rounded-lg border border-border bg-muted/30 p-4">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Subtotal general del presupuesto</p>
                       <p className="mt-1 text-2xl font-semibold text-foreground">{formatCurrency(registeredTotal)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Suma exclusiva de ítems hoja</p>
                     </div>
                   </div>
                   {currentItems.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No hay partidas registradas para este proyecto todavía.</p>
                   ) : (
                     <ScrollableImportTable
-                      headers={["Ítem", "Descripción", "Unidad", "Metrado", "Precio unitario", "Parcial"]}
+                      headers={["Ítem", "Descripción", "Tipo", "Unidad", "Metrado", "Precio unitario", "Parcial"]}
                       rows={[
-                        ...currentItems.map((item) => [
+                        ...sortedCurrentItems.map((item) => {
+                          const isLeaf = isLeafByCode(item.item_code, registeredStats.parentSet);
+                          return [
                           item.item_code || "—",
-                          item.description,
-                          item.unit,
-                          formatNumber(Number(item.base_quantity), 4),
-                          formatCurrency(Number(item.unit_price)),
-                          formatCurrency(Number(item.partial_amount)),
-                        ]),
+                          renderBudgetDescription(item),
+                          isLeaf ? "Ejecutable" : "Agrupador",
+                          isLeaf ? item.unit : "",
+                          isLeaf ? formatNumber(Number(item.base_quantity), 4) : "",
+                          isLeaf ? formatCurrency(Number(item.unit_price)) : "",
+                          isLeaf ? formatCurrency(Number(item.partial_amount)) : "",
+                        ];
+                      }),
                         [
                           "",
                           <span key="total-label" className="font-semibold">Subtotal general</span>,
+                          <span key="total-type" className="font-semibold">Solo hojas</span>,
                           "",
                           "",
                           "",
