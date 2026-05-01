@@ -140,12 +140,12 @@ const settingsSchema = z.object({
 
 function SectionTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
             {headers.map((header) => (
-              <TableHead key={header}>{header}</TableHead>
+              <TableHead key={header} className="whitespace-nowrap">{header}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -153,7 +153,7 @@ function SectionTable({ headers, rows }: { headers: string[]; rows: React.ReactN
           {rows.map((row, index) => (
             <TableRow key={index}>
               {row.map((cell, cellIndex) => (
-                <TableCell key={cellIndex}>{cell}</TableCell>
+                <TableCell key={cellIndex} className="align-top">{cell}</TableCell>
               ))}
             </TableRow>
           ))}
