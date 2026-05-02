@@ -11,8 +11,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/components/app/workspace-provider";
-import { cipLookup } from "@/lib/cip-lookup.functions";
-import { Search as SearchIcon, Loader2 } from "lucide-react";
 import { PageLayout } from "@/components/app/page-layout";
 import { RichTextEditor } from "@/components/app/rich-text-editor";
 import {
