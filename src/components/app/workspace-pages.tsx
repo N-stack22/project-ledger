@@ -2245,7 +2245,26 @@ export function MemoriasPage() {
   return (
     <AuthGuard>
       <PageLayout title="Memoria valorizada" description="Documento obligatorio previo a cualquier valorización mensual.">
-        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        {selectedProject ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ficha técnica · {selectedProject.name}</CardTitle>
+              <CardDescription>
+                Datos generales del proyecto. Los cambios se sincronizan con el módulo Proyectos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FichaTecnicaPanel project={selectedProject} onSaved={refresh} />
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="py-6 text-sm text-muted-foreground">
+              Selecciona un proyecto en el formulario para ver y editar su ficha técnica.
+            </CardContent>
+          </Card>
+        )}
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
           <Card>
             <CardHeader><CardTitle>Redactar memoria</CardTitle></CardHeader>
             <CardContent className="space-y-4">
