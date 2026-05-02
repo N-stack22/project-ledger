@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import { PageLayout } from "@/components/app/page-layout";
 import { RichTextEditor } from "@/components/app/rich-text-editor";
+import { AIDraftDialog } from "@/components/app/ai-draft-dialog";
 import {
   buildAuditSummary,
   buildDashboardMetrics,
@@ -2166,7 +2167,16 @@ export function MemoriasPage() {
         )}
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
           <Card>
-            <CardHeader><CardTitle>Redactar memoria</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Redactar memoria</CardTitle>
+              <AIDraftDialog
+                projects={projects}
+                defaultProjectId={form.watch("project_id")}
+                defaultPeriod={form.watch("period_month")}
+                defaultExecutiveSummary={form.watch("executive_summary")}
+                onApplyAll={(html) => setContent(html)}
+              />
+            </CardHeader>
             <CardContent className="space-y-4">
               <Form {...form}>
                 <form className="space-y-4" onSubmit={submit}>
