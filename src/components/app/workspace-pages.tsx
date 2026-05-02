@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/components/app/workspace-provider";
+import { cipLookup } from "@/lib/cip-lookup.functions";
+import { Search as SearchIcon, Loader2 } from "lucide-react";
 import { PageLayout } from "@/components/app/page-layout";
 import { RichTextEditor } from "@/components/app/rich-text-editor";
 import {
@@ -823,7 +825,17 @@ function DeleteOrArchiveProjectDialog({
   );
 }
 
-function EditProjectDialog({ project, onSaved }: { project: EditableProject; onSaved: () => Promise<void> | void }) {
+export function EditProjectDialog({
+  project,
+  onSaved,
+  triggerLabel,
+  triggerVariant,
+}: {
+  project: EditableProject;
+  onSaved: () => Promise<void> | void;
+  triggerLabel?: string;
+  triggerVariant?: "default" | "outline" | "secondary";
+}) {
   const [open, setOpen] = useState(false);
   const form = useForm<z.infer<typeof fichaTecnicaSchema>>({
     resolver: zodResolver(fichaTecnicaSchema),
@@ -845,8 +857,6 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
   });
 
   // Sync execution_term_days <-> start_date / planned_end_date
-  // - Si cambian ambas fechas, recalcula el plazo (días calendario inclusivos).
-  // - Si el usuario edita manualmente el plazo y existe start_date, recalcula la fecha de término.
   const startDate = form.watch("start_date");
   const endDate = form.watch("planned_end_date");
   const termDays = form.watch("execution_term_days");
@@ -899,24 +909,26 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
       form.setError("root", { message: error.message });
       return;
     }
+    toast.success("Ficha técnica actualizada");
     setOpen(false);
     await onSaved();
   });
 
   const incomplete = isFichaTecnicaIncomplete(project);
+  const label = triggerLabel ?? (incomplete ? "Completar ficha técnica" : "Editar ficha técnica");
+  const variant = triggerVariant ?? (incomplete ? "default" : "outline");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant={incomplete ? "default" : "outline"}>
-          {incomplete ? "Completar ficha técnica" : "Editar"}
-        </Button>
+        <Button size="sm" variant={variant}>{label}</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar proyecto · Ficha técnica</DialogTitle>
+          <DialogTitle>Ficha técnica del proyecto</DialogTitle>
           <DialogDescription>
             Información obligatoria que aparecerá en el Expediente Mensual de Supervisión/Valorización.
+            Los cambios se sincronizan entre Proyectos y Memoria valorizada e Informe Técnico.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -925,15 +937,27 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
               <FormField control={form.control} name="entity_name" render={({ field }) => (
                 <FormItem><FormLabel>Entidad *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Municipalidad / Entidad contratante" /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField control={form.control} name="contractor_name" render={({ field }) => (
-                <FormItem><FormLabel>Contratista *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="supervisor_name" render={({ field }) => (
-                <FormItem><FormLabel>Supervisor *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="resident_name" render={({ field }) => (
-                <FormItem><FormLabel>Residente *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
-              )} />
+              <CipLookupField
+                control={form.control}
+                name="contractor_name"
+                label="Contratista *"
+                placeholder="Razón social o responsable técnico"
+                onResolved={(name) => form.setValue("contractor_name", name, { shouldDirty: true, shouldValidate: true })}
+              />
+              <CipLookupField
+                control={form.control}
+                name="supervisor_name"
+                label="Supervisor *"
+                placeholder="Apellidos y nombres del supervisor"
+                onResolved={(name) => form.setValue("supervisor_name", name, { shouldDirty: true, shouldValidate: true })}
+              />
+              <CipLookupField
+                control={form.control}
+                name="resident_name"
+                label="Residente *"
+                placeholder="Apellidos y nombres del residente"
+                onResolved={(name) => form.setValue("resident_name", name, { shouldDirty: true, shouldValidate: true })}
+              />
               <FormField control={form.control} name="execution_modality" render={({ field }) => (
                 <FormItem><FormLabel>Modalidad de ejecución *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Contrata / Administración directa" /></FormControl><FormMessage /></FormItem>
               )} />
@@ -989,6 +1013,141 @@ function EditProjectDialog({ project, onSaved }: { project: EditableProject; onS
         </Form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Campo de texto + búsqueda por CIP.
+ * El usuario escribe el CIP en un input pequeño, presiona "Buscar" y, si se encuentra,
+ * se autocompleta el nombre. Si la consulta falla, puede escribir el nombre manualmente.
+ */
+function CipLookupField({
+  control,
+  name,
+  label,
+  placeholder,
+  onResolved,
+}: {
+  control: ReturnType<typeof useForm<z.infer<typeof fichaTecnicaSchema>>>["control"];
+  name: "contractor_name" | "supervisor_name" | "resident_name";
+  label: string;
+  placeholder?: string;
+  onResolved: (name: string) => void;
+}) {
+  const [cip, setCip] = useState("");
+  const [loading, setLoading] = useState(false);
+  const lookupFn = useServerFn(cipLookup);
+
+  const handleLookup = async () => {
+    const trimmed = cip.trim();
+    if (!/^\d{4,8}$/.test(trimmed)) {
+      toast.error("Ingresa un CIP válido (4 a 8 dígitos numéricos).");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await lookupFn({ data: { cip: trimmed } });
+      if (res.found && res.fullName) {
+        onResolved(res.fullName);
+        toast.success(`CIP ${trimmed}: ${res.fullName}`);
+      } else {
+        toast.warning(res.error ?? "No se encontró el colegiado. Completa el nombre manualmente.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al consultar el CIP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <div className="flex gap-1">
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={cip}
+              onChange={(e) => setCip(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              placeholder="CIP"
+              className="w-24"
+              aria-label={`CIP de ${label}`}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleLookup}
+              disabled={loading || !cip}
+              aria-label="Buscar en CIP"
+              title="Buscar en cipvirtual.cip.org.pe"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <SearchIcon className="h-4 w-4" />}
+            </Button>
+          </div>
+          <FormControl>
+            <Input {...field} value={field.value ?? ""} placeholder={placeholder} />
+          </FormControl>
+          <FormDescription className="text-[11px]">
+            Ingresa el CIP y presiona buscar para autocompletar el nombre, o escríbelo manualmente.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
+/**
+ * Panel reutilizable de Ficha técnica:
+ * - Muestra los datos en modo lectura (grid).
+ * - Incluye botón para abrir el modal de edición (EditProjectDialog).
+ * - Se puede usar en Proyectos, Memoria valorizada e Informe Técnico.
+ */
+export function FichaTecnicaPanel({
+  project,
+  onSaved,
+  showAlertWhenIncomplete = true,
+}: {
+  project: EditableProject;
+  onSaved: () => Promise<void> | void;
+  showAlertWhenIncomplete?: boolean;
+}) {
+  const incomplete = isFichaTecnicaIncomplete(project);
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+        <FichaDatoCell label="Entidad" value={project.entity_name} />
+        <FichaDatoCell label="Contratista" value={project.contractor_name} />
+        <FichaDatoCell label="Supervisor" value={project.supervisor_name} />
+        <FichaDatoCell label="Residente" value={project.resident_name} />
+        <FichaDatoCell label="Modalidad de ejecución" value={project.execution_modality} />
+        <FichaDatoCell label="Ubicación" value={project.location} />
+        <FichaDatoCell label="Contrato de ejecución" value={project.execution_contract} />
+        <FichaDatoCell label="Contrato de supervisión" value={project.supervision_contract} />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {incomplete && showAlertWhenIncomplete ? (
+          <p className="text-xs text-destructive">
+            La ficha técnica está incompleta. Completa los datos antes de generar el PDF.
+          </p>
+        ) : <span />}
+        <EditProjectDialog project={project} onSaved={onSaved} />
+      </div>
+    </div>
+  );
+}
+
+function FichaDatoCell({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-[11px] uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium text-foreground">{String(value || "—")}</p>
+    </div>
   );
 }
 
@@ -2055,6 +2214,8 @@ export function MemoriasPage() {
   const { projects, memorias, refresh } = useWorkspace();
   const { user } = useAuth();
   const form = useForm<z.infer<typeof memoriaSchema>>({ resolver: zodResolver(memoriaSchema) });
+  const selectedProjectId = form.watch("project_id");
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const [content, setContent] = useState("<p>Describir el avance físico ejecutado, frentes de trabajo y sustento técnico.</p>");
 
   const submit = form.handleSubmit(async (values) => {
@@ -2084,7 +2245,26 @@ export function MemoriasPage() {
   return (
     <AuthGuard>
       <PageLayout title="Memoria valorizada" description="Documento obligatorio previo a cualquier valorización mensual.">
-        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        {selectedProject ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ficha técnica · {selectedProject.name}</CardTitle>
+              <CardDescription>
+                Datos generales del proyecto. Los cambios se sincronizan con el módulo Proyectos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FichaTecnicaPanel project={selectedProject} onSaved={refresh} />
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="py-6 text-sm text-muted-foreground">
+              Selecciona un proyecto en el formulario para ver y editar su ficha técnica.
+            </CardContent>
+          </Card>
+        )}
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
           <Card>
             <CardHeader><CardTitle>Redactar memoria</CardTitle></CardHeader>
             <CardContent className="space-y-4">
