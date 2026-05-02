@@ -937,27 +937,15 @@ export function EditProjectDialog({
               <FormField control={form.control} name="entity_name" render={({ field }) => (
                 <FormItem><FormLabel>Entidad *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Municipalidad / Entidad contratante" /></FormControl><FormMessage /></FormItem>
               )} />
-              <CipLookupField
-                control={form.control}
-                name="contractor_name"
-                label="Contratista *"
-                placeholder="Razón social o responsable técnico"
-                onResolved={(name) => form.setValue("contractor_name", name, { shouldDirty: true, shouldValidate: true })}
-              />
-              <CipLookupField
-                control={form.control}
-                name="supervisor_name"
-                label="Supervisor *"
-                placeholder="Apellidos y nombres del supervisor"
-                onResolved={(name) => form.setValue("supervisor_name", name, { shouldDirty: true, shouldValidate: true })}
-              />
-              <CipLookupField
-                control={form.control}
-                name="resident_name"
-                label="Residente *"
-                placeholder="Apellidos y nombres del residente"
-                onResolved={(name) => form.setValue("resident_name", name, { shouldDirty: true, shouldValidate: true })}
-              />
+              <FormField control={form.control} name="contractor_name" render={({ field }) => (
+                <FormItem><FormLabel>Contratista *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Razón social o responsable técnico" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="supervisor_name" render={({ field }) => (
+                <FormItem><FormLabel>Supervisor *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Apellidos y nombres del supervisor" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="resident_name" render={({ field }) => (
+                <FormItem><FormLabel>Residente *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Apellidos y nombres del residente" /></FormControl><FormMessage /></FormItem>
+              )} />
               <FormField control={form.control} name="execution_modality" render={({ field }) => (
                 <FormItem><FormLabel>Modalidad de ejecución *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Contrata / Administración directa" /></FormControl><FormMessage /></FormItem>
               )} />
