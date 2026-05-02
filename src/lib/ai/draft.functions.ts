@@ -66,19 +66,21 @@ export const generateTechnicalDraft = createServerFn({ method: "POST" })
     }
 
     // 2) Partidas (presupuesto)
-    const { data: budgetItems = [] } = await supabase
+    const { data: budgetItemsData } = await supabase
       .from("budget_items")
       .select("id, item_code, description, unit, base_quantity, unit_price")
       .eq("project_id", data.project_id)
       .order("sort_order", { ascending: true });
+    const budgetItems = budgetItemsData ?? [];
 
     // 3) Metrados validados del período
-    const { data: metrados = [] } = await supabase
+    const { data: metradosData } = await supabase
       .from("metrado_entries")
       .select("item_id, quantity, entry_date, status")
       .eq("project_id", data.project_id)
       .eq("period_month", data.period_month)
       .eq("status", "validated");
+    const metrados = metradosData ?? [];
 
     // 4) Valorización (si ya existe)
     const { data: valuation } = await supabase
@@ -98,11 +100,11 @@ export const generateTechnicalDraft = createServerFn({ method: "POST" })
         .eq("period_month", data.period_month)
         .maybeSingle();
       if (valuationRow?.id) {
-        const { data: vlines = [] } = await supabase
+        const { data: vlines } = await supabase
           .from("valuation_lines")
           .select("item_id, quantity_period, quantity_accumulated")
           .eq("valuation_id", valuationRow.id);
-        lines = vlines as typeof lines;
+        lines = (vlines ?? []) as typeof lines;
       }
     }
 
