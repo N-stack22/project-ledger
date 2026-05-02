@@ -2214,6 +2214,8 @@ export function MemoriasPage() {
   const { projects, memorias, refresh } = useWorkspace();
   const { user } = useAuth();
   const form = useForm<z.infer<typeof memoriaSchema>>({ resolver: zodResolver(memoriaSchema) });
+  const selectedProjectId = form.watch("project_id");
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const [content, setContent] = useState("<p>Describir el avance físico ejecutado, frentes de trabajo y sustento técnico.</p>");
 
   const submit = form.handleSubmit(async (values) => {
