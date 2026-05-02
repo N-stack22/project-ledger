@@ -16,33 +16,27 @@ export type CipLookupResult = {
   raw?: string;
 };
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/firecrawl";
+// Firecrawl NO usa el connector gateway de Lovable: se llama directo a su API
+// oficial con FIRECRAWL_API_KEY (inyectada por el conector al vincularlo).
+const FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape";
 
 /**
  * Consulta pública del CIP (Colegio de Ingenieros del Perú)
  * Fuente: https://cipvirtual.cip.org.pe/sicecolegiacionweb/externo/consultaCol/
- *
- * Estrategia: usar Firecrawl para scrapear la página pasando el CIP como parámetro
- * (?codigo=NNNN) y luego intentar parsear el resultado del DOM.
- *
- * NOTA: el sitio del CIP puede tener CAPTCHA o requerir JS. Si Firecrawl no logra
- * extraer datos estructurados, devolvemos found:false y el usuario completa manualmente.
  */
 export const cipLookup = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }): Promise<CipLookupResult> => {
-    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
     const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 
-    if (!LOVABLE_API_KEY || !FIRECRAWL_API_KEY) {
+    if (!FIRECRAWL_API_KEY) {
       return {
         found: false,
         cip: data.cip,
-        error: "El servicio de consulta CIP no está configurado.",
+        error: "El servicio de consulta CIP no está configurado (falta FIRECRAWL_API_KEY).",
       };
     }
 
-    // URLs candidatas: el sitio público acepta consultas con el código de colegiatura
     const candidates = [
       `https://cipvirtual.cip.org.pe/sicecolegiacionweb/externo/consultaCol/?codigo=${data.cip}`,
       `https://cipvirtual.cip.org.pe/sicecolegiacionweb/externo/consultaCol/`,
@@ -53,11 +47,10 @@ export const cipLookup = createServerFn({ method: "POST" })
 
     for (const url of candidates) {
       try {
-        const res = await fetch(`${GATEWAY_URL}/v2/scrape`, {
+        const res = await fetch(FIRECRAWL_URL, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "X-Connection-Api-Key": FIRECRAWL_API_KEY,
+            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -69,12 +62,17 @@ export const cipLookup = createServerFn({ method: "POST" })
         });
 
         if (!res.ok) {
-          lastError = `Firecrawl HTTP ${res.status}`;
+          const errText = await res.text().catch(() => "");
+          lastError = `Firecrawl HTTP ${res.status}${errText ? `: ${errText.slice(0, 200)}` : ""}`;
           continue;
         }
 
         const json: unknown = await res.json();
-        const payload = (json as { data?: { markdown?: string; html?: string }; markdown?: string; html?: string });
+        const payload = json as {
+          data?: { markdown?: string; html?: string };
+          markdown?: string;
+          html?: string;
+        };
         const md = payload.data?.markdown ?? payload.markdown ?? "";
         const html = payload.data?.html ?? payload.html ?? "";
         raw = `${md}\n${html}`;
