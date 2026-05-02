@@ -1049,7 +1049,8 @@ function CipLookupField({
       const res = await lookupFn({ data: { cip: trimmed } });
       if (res.found && res.fullName) {
         onResolved(res.fullName);
-        toast.success(`CIP ${trimmed}: ${res.fullName}`);
+        const details = [res.specialty, res.chapter, res.status].filter(Boolean).join(" · ");
+        toast.success(`CIP ${trimmed}: ${res.fullName}${details ? ` (${details})` : ""}`);
       } else {
         toast.warning(res.error ?? "No se encontró el colegiado. Completa el nombre manualmente.");
       }
