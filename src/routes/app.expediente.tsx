@@ -58,7 +58,7 @@ const STEPS = [
 
 function ExpedientePage() {
   const { user } = useAuth();
-  const { projects, budgetItems } = useWorkspace();
+  const { projects, budgetItems, refresh } = useWorkspace();
   const [step, setStep] = useState(1);
   const [projectId, setProjectId] = useState<string>("");
   const [periods, setPeriods] = useState<Period[]>([]);
@@ -417,24 +417,7 @@ function ExpedientePage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-              <FichaDato label="Entidad" value={project.entity_name} />
-              <FichaDato label="Contratista" value={project.contractor_name} />
-              <FichaDato label="Supervisor" value={project.supervisor_name} />
-              <FichaDato label="Residente" value={project.resident_name} />
-              <FichaDato label="Modalidad de ejecución" value={project.execution_modality} />
-              <FichaDato label="Contrato de ejecución" value={project.execution_contract} />
-              <FichaDato label="Contrato de supervisión" value={project.supervision_contract} />
-              <FichaDato label="Monto contractual" value={formatMoney(Number(project.contract_amount || 0), currency)} />
-            </div>
-            {isFichaTecnicaIncomplete(project) && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                La ficha técnica está incompleta. Completa los datos generales del proyecto antes de generar el PDF.
-                <Button asChild size="sm" variant="secondary" className="mt-3 block w-fit">
-                  <Link to="/app/projects">Completar ficha técnica</Link>
-                </Button>
-              </div>
-            )}
+            <FichaTecnicaPanel project={project} onSaved={refresh} />
           </CardContent>
         </Card>
       )}
