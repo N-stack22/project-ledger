@@ -11,8 +11,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/components/app/workspace-provider";
-import { cipLookup } from "@/lib/cip-lookup.functions";
-import { Search as SearchIcon, Loader2 } from "lucide-react";
 import { PageLayout } from "@/components/app/page-layout";
 import { RichTextEditor } from "@/components/app/rich-text-editor";
 import {
@@ -937,27 +935,15 @@ export function EditProjectDialog({
               <FormField control={form.control} name="entity_name" render={({ field }) => (
                 <FormItem><FormLabel>Entidad *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Municipalidad / Entidad contratante" /></FormControl><FormMessage /></FormItem>
               )} />
-              <CipLookupField
-                control={form.control}
-                name="contractor_name"
-                label="Contratista *"
-                placeholder="Razón social o responsable técnico"
-                onResolved={(name) => form.setValue("contractor_name", name, { shouldDirty: true, shouldValidate: true })}
-              />
-              <CipLookupField
-                control={form.control}
-                name="supervisor_name"
-                label="Supervisor *"
-                placeholder="Apellidos y nombres del supervisor"
-                onResolved={(name) => form.setValue("supervisor_name", name, { shouldDirty: true, shouldValidate: true })}
-              />
-              <CipLookupField
-                control={form.control}
-                name="resident_name"
-                label="Residente *"
-                placeholder="Apellidos y nombres del residente"
-                onResolved={(name) => form.setValue("resident_name", name, { shouldDirty: true, shouldValidate: true })}
-              />
+              <FormField control={form.control} name="contractor_name" render={({ field }) => (
+                <FormItem><FormLabel>Contratista *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Razón social o responsable técnico" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="supervisor_name" render={({ field }) => (
+                <FormItem><FormLabel>Supervisor *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Apellidos y nombres del supervisor" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="resident_name" render={({ field }) => (
+                <FormItem><FormLabel>Residente *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Apellidos y nombres del residente" /></FormControl><FormMessage /></FormItem>
+              )} />
               <FormField control={form.control} name="execution_modality" render={({ field }) => (
                 <FormItem><FormLabel>Modalidad de ejecución *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Contrata / Administración directa" /></FormControl><FormMessage /></FormItem>
               )} />
@@ -1013,93 +999,6 @@ export function EditProjectDialog({
         </Form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/**
- * Campo de texto + búsqueda por CIP.
- * El usuario escribe el CIP en un input pequeño, presiona "Buscar" y, si se encuentra,
- * se autocompleta el nombre. Si la consulta falla, puede escribir el nombre manualmente.
- */
-function CipLookupField({
-  control,
-  name,
-  label,
-  placeholder,
-  onResolved,
-}: {
-  control: ReturnType<typeof useForm<z.infer<typeof fichaTecnicaSchema>>>["control"];
-  name: "contractor_name" | "supervisor_name" | "resident_name";
-  label: string;
-  placeholder?: string;
-  onResolved: (name: string) => void;
-}) {
-  const [cip, setCip] = useState("");
-  const [loading, setLoading] = useState(false);
-  const lookupFn = useServerFn(cipLookup);
-
-  const handleLookup = async () => {
-    const trimmed = cip.trim();
-    if (!/^\d{4,8}$/.test(trimmed)) {
-      toast.error("Ingresa un CIP válido (4 a 8 dígitos numéricos).");
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await lookupFn({ data: { cip: trimmed } });
-      if (res.found && res.fullName) {
-        onResolved(res.fullName);
-        const details = [res.specialty, res.chapter, res.status].filter(Boolean).join(" · ");
-        toast.success(`CIP ${trimmed}: ${res.fullName}${details ? ` (${details})` : ""}`);
-      } else {
-        toast.warning(res.error ?? "No se encontró el colegiado. Completa el nombre manualmente.");
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al consultar el CIP");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <FormField
-      control={control}
-      name={name}
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <div className="flex gap-1">
-            <Input
-              type="text"
-              inputMode="numeric"
-              value={cip}
-              onChange={(e) => setCip(e.target.value.replace(/\D/g, "").slice(0, 8))}
-              placeholder="CIP"
-              className="w-24"
-              aria-label={`CIP de ${label}`}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={handleLookup}
-              disabled={loading || !cip}
-              aria-label="Buscar en CIP"
-              title="Buscar en cipvirtual.cip.org.pe"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <SearchIcon className="h-4 w-4" />}
-            </Button>
-          </div>
-          <FormControl>
-            <Input {...field} value={field.value ?? ""} placeholder={placeholder} />
-          </FormControl>
-          <FormDescription className="text-[11px]">
-            Ingresa el CIP y presiona buscar para autocompletar el nombre, o escríbelo manualmente.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
   );
 }
 
