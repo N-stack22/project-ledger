@@ -1,18 +1,19 @@
 // Selector del proveedor de IA según AI_PROVIDER.
-// Hoy soporta "ollama". Para añadir otro proveedor, crear una clase
-// que implemente AIProvider y registrarla aquí.
+// Soportados: "claude" (default), "ollama".
 
 import type { AIProvider } from "./types";
 import { OllamaProvider } from "./providers/ollama.server";
+import { ClaudeProvider } from "./providers/claude.server";
 
 export function getAIProvider(): AIProvider {
-  const name = (process.env.AI_PROVIDER ?? "ollama").toLowerCase();
+  const name = (process.env.AI_PROVIDER ?? "claude").toLowerCase();
   switch (name) {
     case "ollama":
       return new OllamaProvider();
+    case "claude":
+    case "anthropic":
+      return new ClaudeProvider();
     default:
-      // Fallback explícito: si la variable está mal configurada, igual usamos Ollama
-      // para no romper la app. La llamada fallará claro si no está disponible.
-      return new OllamaProvider();
+      return new ClaudeProvider();
   }
 }
