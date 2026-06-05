@@ -21,6 +21,10 @@ export type ValuationLineRow = Database["public"]["Tables"]["valuation_lines"]["
 export type LiquidationRow = Database["public"]["Tables"]["liquidations"]["Row"];
 export type WorkflowCommentRow = Database["public"]["Tables"]["workflow_comments"]["Row"];
 export type UserRoleRow = Database["public"]["Tables"]["user_roles"]["Row"];
+export type ProjectMemberRow = Database["public"]["Tables"]["project_members"]["Row"];
+export type ProjectRole = Database["public"]["Enums"]["project_role"];
+export type GlobalRole = Database["public"]["Enums"]["global_role"];
+export type UserGlobalRoleRow = Database["public"]["Tables"]["user_global_roles"]["Row"];
 
 export type RichTextDocument = {
   html: string;

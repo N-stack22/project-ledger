@@ -8,7 +8,9 @@ import type {
   MemoriaRow,
   MetradoEntryRow,
   ProfileRow,
+  ProjectMemberRow,
   ProjectRow,
+  UserGlobalRoleRow,
   UserRoleRow,
   ValuationLineRow,
   ValuationRow,
@@ -30,6 +32,8 @@ interface WorkspaceContextValue {
   workflowComments: WorkflowCommentRow[];
   profiles: ProfileRow[];
   userRoles: UserRoleRow[];
+  projectMembers: ProjectMemberRow[];
+  userGlobalRoles: UserGlobalRoleRow[];
   auditLogs: Array<{ id: string; action: string; created_at: string; entity_type: string; actor_user_id: string | null }>;
   refresh: () => Promise<void>;
 }
@@ -51,6 +55,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [workflowComments, setWorkflowComments] = useState<WorkflowCommentRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
+  const [userGlobalRoles, setUserGlobalRoles] = useState<UserGlobalRoleRow[]>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; created_at: string; entity_type: string; actor_user_id: string | null }>>([]);
 
   const refresh = async () => {
@@ -70,6 +76,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const liquidationsQuery = supabase.from("liquidations").select("*").order("created_at", { ascending: false });
     const commentsQuery = supabase.from("workflow_comments").select("*").order("created_at", { ascending: false });
     const auditQuery = supabase.from("audit_logs").select("id,action,created_at,entity_type,actor_user_id").order("created_at", { ascending: false }).limit(20);
+    const projectMembersQuery = supabase.from("project_members").select("*");
+    const userGlobalRolesQuery = supabase.from("user_global_roles").select("*").eq("user_id", user.id);
 
     const profileQuery = isAdmin
       ? supabase.from("profiles").select("*").order("created_at", { ascending: false })
@@ -91,6 +99,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       profilesResult,
       rolesResult,
       auditResult,
+      projectMembersResult,
+      userGlobalRolesResult,
     ] = await Promise.all([
       projectQuery,
       importsQuery,
@@ -104,6 +114,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       profileQuery,
       rolesQuery,
       auditQuery,
+      projectMembersQuery,
+      userGlobalRolesQuery,
     ]);
 
     setProjects(projectsResult.data ?? []);
@@ -118,6 +130,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setProfiles(profilesResult.data ?? []);
     setUserRoles(rolesResult.data ?? []);
     setAuditLogs(auditResult.data ?? []);
+    setProjectMembers(projectMembersResult.data ?? []);
+    setUserGlobalRoles(userGlobalRolesResult.data ?? []);
     setLoading(false);
     setRefreshing(false);
   };
@@ -141,6 +155,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       workflowComments,
       profiles,
       userRoles,
+      projectMembers,
+      userGlobalRoles,
       auditLogs,
       refresh,
     }),
@@ -154,7 +170,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       metrados,
       profiles,
       projects,
+      projectMembers,
       refreshing,
+      userGlobalRoles,
       userRoles,
       valuationLines,
       valuations,
