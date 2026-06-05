@@ -56,6 +56,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "audit_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       budget_imports: {
@@ -107,6 +114,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_imports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -178,6 +192,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "budget_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       expediente_documents: {
@@ -230,6 +251,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -286,6 +314,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: true
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "v_my_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -345,6 +380,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memoria_valorizada_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -408,6 +450,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metrado_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -495,6 +544,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "metrado_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -538,6 +594,7 @@ export type Database = {
           created_at: string
           id: string
           project_id: string
+          project_role: Database["public"]["Enums"]["project_role"]
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
@@ -545,6 +602,7 @@ export type Database = {
           created_at?: string
           id?: string
           project_id: string
+          project_role: Database["public"]["Enums"]["project_role"]
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
@@ -552,6 +610,7 @@ export type Database = {
           created_at?: string
           id?: string
           project_id?: string
+          project_role?: Database["public"]["Enums"]["project_role"]
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
@@ -561,6 +620,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -700,6 +766,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_global_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["global_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["global_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["global_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -771,6 +858,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "valuation_deductions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -889,6 +983,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "valuation_periods_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       valuations: {
@@ -973,6 +1074,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "valuations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       workflow_comments: {
@@ -1014,11 +1122,28 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "workflow_comments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      v_my_projects: {
+        Row: {
+          code: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+          project_role: Database["public"]["Enums"]["project_role"] | null
+          status: Database["public"]["Enums"]["project_status"] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_edit_project_data: {
@@ -1033,9 +1158,32 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
+      has_any_project_role: {
+        Args: {
+          _project_id: string
+          _roles: Database["public"]["Enums"]["project_role"][]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_global_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["global_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_project_role: {
+        Args: {
+          _project_id: string
+          _role: Database["public"]["Enums"]["project_role"]
           _user_id: string
         }
         Returns: boolean
@@ -1047,6 +1195,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_global_admin: { Args: { _user_id: string }; Returns: boolean }
       is_project_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -1071,6 +1220,7 @@ export type Database = {
         | "otra"
       document_status: "draft" | "in_review" | "approved" | "rejected"
       entry_status: "draft" | "submitted" | "validated" | "rejected"
+      global_role: "super_admin" | "admin_empresa" | "usuario_registrado"
       import_status:
         | "pending"
         | "processing"
@@ -1078,6 +1228,12 @@ export type Database = {
         | "imported"
         | "failed"
       liquidation_status: "draft" | "generated" | "approved"
+      project_role:
+        | "admin_proyecto"
+        | "residente_obra"
+        | "supervisor_inspector"
+        | "entidad_publica"
+        | "representante_legal"
       project_status:
         | "draft"
         | "active"
@@ -1242,6 +1398,7 @@ export const Constants = {
       ],
       document_status: ["draft", "in_review", "approved", "rejected"],
       entry_status: ["draft", "submitted", "validated", "rejected"],
+      global_role: ["super_admin", "admin_empresa", "usuario_registrado"],
       import_status: [
         "pending",
         "processing",
@@ -1250,6 +1407,13 @@ export const Constants = {
         "failed",
       ],
       liquidation_status: ["draft", "generated", "approved"],
+      project_role: [
+        "admin_proyecto",
+        "residente_obra",
+        "supervisor_inspector",
+        "entidad_publica",
+        "representante_legal",
+      ],
       project_status: [
         "draft",
         "active",

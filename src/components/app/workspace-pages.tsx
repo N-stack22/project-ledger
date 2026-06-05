@@ -1108,7 +1108,8 @@ export function ProjectsPage() {
     await supabase.from("project_members").insert({
       project_id: data.id,
       user_id: user.id,
-      role: roles.includes("admin") ? "admin" : "resident",
+      role: "admin",
+      project_role: "admin_proyecto",
     });
     form.reset({
       code: "",
