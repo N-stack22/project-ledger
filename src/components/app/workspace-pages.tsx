@@ -2213,6 +2213,7 @@ export function MemoriasPage() {
                       <Button size="sm" variant="outline" onClick={() => updateStatus(memoria.id, "approved")}>Aprobar</Button>
                       <Button size="sm" variant="outline" onClick={() => updateStatus(memoria.id, "rejected")}>Observar</Button>
                       {project ? <Button size="sm" variant="ghost" onClick={() => exportMemoriaPdf(project, memoria)}>PDF</Button> : null}
+                      <SignDocumentButton projectId={memoria.project_id} documentId={memoria.id} documentType="memoria_valorizada" payload={{ id: memoria.id, title: memoria.title, period_month: memoria.period_month, executive_summary: memoria.executive_summary, content_json: memoria.content_json, version_number: memoria.version_number }} />
                     </div>
                   </div>
                 );
