@@ -2350,14 +2350,7 @@ export function ValuationsPage() {
     await refresh();
   });
 
-  const updateStatus = async (id: string, status: "reviewed" | "approved" | "rejected") => {
-    if (!user) return;
-    const payload = status === "approved"
-      ? { status, supervisor_reviewed_by: user.id, supervisor_reviewed_at: new Date().toISOString() }
-      : { status, resident_reviewed_by: user.id, resident_reviewed_at: new Date().toISOString() };
-    await supabase.from("valuations").update(payload).eq("id", id);
-    await refresh();
-  };
+  // Status transitions are handled by <WorkflowPanel /> below.
 
   return (
     <AuthGuard>
