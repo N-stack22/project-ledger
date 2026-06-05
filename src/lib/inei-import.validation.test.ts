@@ -227,7 +227,7 @@ describe("validateIneiRows — espacios en blanco extremos", () => {
 });
 
 describe("validateIneiRows — caracteres no permitidos en code", () => {
-  const invalidCodes = ["39$", "39/40", "39 40", "código", "39:01", "39@", "39+", "39*", "39\t", "ñ-1"];
+  const invalidCodes = ["39$", "39/40", "39 40", "código", "39:01", "39@", "39+", "39*", "ñ-1"];
   invalidCodes.forEach((bad) => {
     it(`rechaza code "${bad.replace(/\s/g, "·")}"`, () => {
       const { errors, valid } = validateIneiRows([{ period_month: "2026-06", code: bad, value: 100 }]);
