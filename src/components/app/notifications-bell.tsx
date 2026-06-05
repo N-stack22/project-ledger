@@ -127,7 +127,7 @@ export function NotificationsBell() {
                       onClick={() => {
                         if (unreadItem) void markOneRead(n.id);
                         setOpen(false);
-                        if (n.link) router.navigate({ to: n.link });
+                        if (n.link) router.navigate({ to: n.link as never });
                       }}
                     >
                       <div className="px-3 py-2 text-sm">
