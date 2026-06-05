@@ -97,7 +97,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       projectsResult,
       importsResult,
       itemsResult,
-      metradosResult,
+      metradoLinesResult,
+      valuationPeriodsResult,
       memoriasResult,
       valuationsResult,
       valuationLinesResult,
@@ -113,7 +114,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       projectQuery,
       importsQuery,
       itemsQuery,
-      metradosQuery,
+      metradoLinesQuery,
+      valuationPeriodsQuery,
       memoriasQuery,
       valuationsQuery,
       valuationLinesQuery,
@@ -130,7 +132,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setProjects(projectsResult.data ?? []);
     setBudgetImports(importsResult.data ?? []);
     setBudgetItems(itemsResult.data ?? []);
-    setMetrados(metradosResult.data ?? []);
+
+    // Map metrado_lines → MetradoEntryRow shape esperada por consumidores legacy.
+    const periodById = new Map(
+      (valuationPeriodsResult.data ?? []).map((p) => [p.id, p] as const),
+    );
+    const mappedMetrados: MetradoEntryRow[] = (metradoLinesResult.data ?? []).map((l) => {
+      const period = periodById.get(l.period_id);
+      const periodFrom = period?.date_from ?? l.created_at.slice(0, 10);
+      const periodMonth = `${periodFrom.slice(0, 7)}-01`;
+      return {
+        id: l.id,
+        project_id: l.project_id,
+        item_id: l.item_id,
+        period_month: periodMonth,
+        entry_date: period?.date_to ?? periodFrom,
+        quantity: Number(l.partial ?? 0),
+        status: "validated",
+        notes: l.observation,
+        created_by: l.created_by,
+        created_at: l.created_at,
+        updated_at: l.updated_at,
+      };
+    });
+    setMetrados(mappedMetrados);
     setMemorias(memoriasResult.data ?? []);
     setValuations(valuationsResult.data ?? []);
     setValuationLines(valuationLinesResult.data ?? []);
