@@ -2390,12 +2390,11 @@ export function ValuationsPage() {
                       <p>Neto: {formatCurrency(Number(valuation.net_amount), project?.currency_code || "PEN")}</p>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => updateStatus(valuation.id, "reviewed")}>Revisar</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateStatus(valuation.id, "approved")}>Aprobar</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateStatus(valuation.id, "rejected")}>Rechazar</Button>
                       {project ? <Button size="sm" variant="ghost" onClick={() => exportValuationPdf(project, valuation, lines)}>PDF</Button> : null}
                       <SignDocumentButton projectId={valuation.project_id} documentId={valuation.id} documentType="valuation" payload={{ id: valuation.id, period_month: valuation.period_month, gross_amount: valuation.gross_amount, deductions_amount: valuation.deductions_amount, net_amount: valuation.net_amount, progress_percent: valuation.progress_percent, contract_type_snapshot: valuation.contract_type_snapshot }} />
                     </div>
+                    <WorkflowPanel kind="valuation" projectId={valuation.project_id} entityId={valuation.id} status={valuation.status} onChanged={refresh} />
+                  </div>
                   </div>
                 );
               })}
