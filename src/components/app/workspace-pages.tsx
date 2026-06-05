@@ -2191,11 +2191,7 @@ export function MemoriasPage() {
     await refresh();
   });
 
-  const updateStatus = async (id: string, status: "in_review" | "approved" | "rejected") => {
-    if (!user) return;
-    await supabase.from("memoria_valorizada").update({ status, reviewed_by: user.id, reviewed_at: new Date().toISOString() }).eq("id", id);
-    await refresh();
-  };
+  // Status transitions are handled by <WorkflowPanel /> below.
 
   return (
     <AuthGuard>
