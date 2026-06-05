@@ -73,7 +73,7 @@ function formatMoney(n: number) {
 }
 
 export function ReajustesPage() {
-  const { projects } = useWorkspace();
+  const { projects, valuations } = useWorkspace();
   const { user, isAdmin } = useAuth();
   const [projectId, setProjectId] = useState("");
   const [formulas, setFormulas] = useState<Formula[]>([]);
