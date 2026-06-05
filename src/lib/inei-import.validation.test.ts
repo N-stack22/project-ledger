@@ -178,3 +178,203 @@ describe("validateIneiRows — lote mixto", () => {
     expect(errors).toEqual([]);
   });
 });
+
+describe("validateIneiRows — espacios en blanco extremos", () => {
+  it("trimea espacios alrededor de code y description", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "  2026-06  ", code: "  39  ", description: "  Cemento  ", value: "  123.45  " },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid[0]).toEqual({ period_month: "2026-06-01", code: "39", description: "Cemento", value: 123.45 });
+  });
+
+  it("rechaza code que es sólo espacios", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "   ", value: 100 },
+    ]);
+    expect(errors.find((e) => e.field === "code")?.message).toBe("Código vacío.");
+  });
+
+  it("rechaza value que es sólo espacios", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "   " },
+    ]);
+    expect(errors.find((e) => e.field === "value")?.message).toBe("Valor vacío.");
+  });
+
+  it("rechaza code con espacios internos", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39 40", value: 100 },
+    ]);
+    expect(errors.find((e) => e.field === "code")?.message).toMatch(/Caracteres inválidos/);
+  });
+
+  it("permite value con espacios internos (se eliminan)", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "1 234.56" },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid[0].value).toBeCloseTo(1234.56, 2);
+  });
+
+  it("trata description compuesta sólo de espacios como null", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", description: "    ", value: 100 },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid[0].description).toBeNull();
+  });
+});
+
+describe("validateIneiRows — caracteres no permitidos en code", () => {
+  const invalidCodes = ["39$", "39/40", "39 40", "código", "39:01", "39@", "39+", "39*", "39\t", "ñ-1"];
+  invalidCodes.forEach((bad) => {
+    it(`rechaza code "${bad.replace(/\s/g, "·")}"`, () => {
+      const { errors, valid } = validateIneiRows([{ period_month: "2026-06", code: bad, value: 100 }]);
+      expect(valid).toEqual([]);
+      expect(errors.find((e) => e.field === "code")).toBeDefined();
+    });
+  });
+
+  it("acepta sólo letras, dígitos, punto, guion y guion bajo", () => {
+    const { errors, valid } = validateIneiRows([
+      { period_month: "2026-06", code: "ABC.39_a-1", value: 100 },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid).toHaveLength(1);
+  });
+});
+
+describe("validateIneiRows — separadores decimales mixtos", () => {
+  it("acepta punto como separador decimal", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "1234.56" },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid[0].value).toBeCloseTo(1234.56, 2);
+  });
+
+  it("acepta coma como separador decimal", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "1234,56" },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid[0].value).toBeCloseTo(1234.56, 2);
+  });
+
+  it("rechaza coma de miles + coma decimal (1,234,56)", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "1,234,56" },
+    ]);
+    expect(errors.find((e) => e.field === "value")?.message).toMatch(/no numérico/);
+  });
+
+  it("rechaza punto de miles con coma decimal (1.234,56)", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "1.234,56" },
+    ]);
+    expect(errors.find((e) => e.field === "value")?.message).toMatch(/no numérico/);
+  });
+
+  it("rechaza notación científica", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "1e3" },
+    ]);
+    expect(errors.find((e) => e.field === "value")?.message).toMatch(/no numérico/);
+  });
+
+  it("rechaza valores con sufijo no numérico", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "100abc" },
+    ]);
+    expect(errors.find((e) => e.field === "value")?.message).toMatch(/no numérico/);
+  });
+
+  it("acepta entero sin decimales", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "100" },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid[0].value).toBe(100);
+  });
+
+  it("acepta value justo en el límite superior (100000)", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: 100000 },
+    ]);
+    expect(errors).toEqual([]);
+    expect(valid[0].value).toBe(100000);
+  });
+
+  it("rechaza value apenas por encima del límite (100000.01)", () => {
+    const { errors } = validateIneiRows([
+      { period_month: "2026-06", code: "39", value: "100000.01" },
+    ]);
+    expect(errors.find((e) => e.field === "value")?.message).toMatch(/sospechosamente alto/);
+  });
+});
+
+describe("validateIneiRows — period_month en formatos límite", () => {
+  it("acepta año mínimo válido (1900)", () => {
+    expect(normalizePeriod("1900-01-01")).toBe("1900-01-01");
+  });
+
+  it("rechaza año por debajo del rango (1899)", () => {
+    expect(normalizePeriod("1899-12")).toBeNull();
+  });
+
+  it("acepta año máximo válido (2999-12-31)", () => {
+    expect(normalizePeriod("2999-12-31")).toBe("2999-12-31");
+  });
+
+  it("rechaza año por encima del rango (3000)", () => {
+    expect(normalizePeriod("3000-01")).toBeNull();
+  });
+
+  it("acepta 29 de febrero en año bisiesto", () => {
+    expect(normalizePeriod("2024-02-29")).toBe("2024-02-29");
+  });
+
+  it("rechaza 29 de febrero en año no bisiesto", () => {
+    expect(normalizePeriod("2023-02-29")).toBeNull();
+  });
+
+  it("rechaza día 31 en mes de 30 días", () => {
+    expect(normalizePeriod("2026-04-31")).toBeNull();
+  });
+
+  it("acepta formato YYYY/MM/DD con barras", () => {
+    expect(normalizePeriod("2026/06/15")).toBe("2026-06-15");
+  });
+
+  it("acepta MM-YYYY con guion", () => {
+    expect(normalizePeriod("06-2026")).toBe("2026-06-01");
+  });
+
+  it("acepta M/YYYY (un solo dígito de mes)", () => {
+    expect(normalizePeriod("6/2026")).toBe("2026-06-01");
+  });
+
+  it("rechaza mes 00", () => {
+    expect(normalizePeriod("2026-00")).toBeNull();
+  });
+
+  it("rechaza día 00", () => {
+    expect(normalizePeriod("2026-06-00")).toBeNull();
+  });
+
+  it("rechaza fecha con texto adicional", () => {
+    expect(normalizePeriod("2026-06-01 extra")).toBeNull();
+  });
+
+  it("propaga rechazo de período límite por fila", () => {
+    const { valid, errors } = validateIneiRows([
+      { period_month: "1899-12", code: "39", value: 100 },
+      { period_month: "1900-01", code: "39", value: 100 },
+    ]);
+    expect(valid).toHaveLength(1);
+    expect(valid[0].period_month).toBe("1900-01-01");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].field).toBe("period_month");
+  });
+});
