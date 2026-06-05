@@ -837,7 +837,12 @@ function IndicesTab({ indices, isAdmin, onChange }: { indices: IneiIndex[]; isAd
           <CardTitle className="text-base">Índices unificados INEI</CardTitle>
           <CardDescription>{isAdmin ? "Solo administradores globales pueden modificar." : "Consulta del catálogo INEI."}</CardDescription>
         </div>
-        {isAdmin ? <ImportCsvDialog onChange={onChange} /> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={downloadIneiTemplate}>
+            <Download className="mr-1 h-4 w-4" /> Plantilla CSV
+          </Button>
+          {isAdmin ? <ImportCsvDialog onChange={onChange} /> : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {isAdmin ? (
