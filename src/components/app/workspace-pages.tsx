@@ -29,6 +29,8 @@ import {
   exportMemoriaPdf,
   exportMetradosWorkbook,
   exportValuationPdf,
+  exportValuationWorkbook,
+
   formatCurrency,
   formatDate,
   formatDateTime,
