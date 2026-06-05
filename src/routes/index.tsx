@@ -88,8 +88,9 @@ function Index() {
             </h1>
 
             <p className="max-w-xl text-base text-muted-foreground md:text-lg">
-              Sistema integral para gestión mensual de presupuestos, metrados
-              ejecutados, memoria valorizada y liquidación de obras. Trazable,
+              Plataforma integral para obra pública: proyectos, presupuestos,
+              metrados ejecutados, memoria valorizada, valorizaciones mensuales,
+              reajustes con índices INEI y liquidación final. Trazable,
               auditable y construido al detalle como un plano.
             </p>
 
@@ -112,9 +113,9 @@ function Index() {
             {/* Specs estilo ficha técnica */}
             <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-sm border border-border bg-border text-xs max-w-xl">
               {[
-                ["Módulos", "11"],
-                ["Reportes PDF", "Auto"],
-                ["Trazabilidad", "100%"],
+                ["Módulos", "12"],
+                ["PDF cliente", "Sí"],
+                ["Roles RLS", "5"],
               ].map(([k, v]) => (
                 <div key={k} className="bg-card px-4 py-3">
                   <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
