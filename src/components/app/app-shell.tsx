@@ -51,6 +51,7 @@ const menuGroups = [
       { title: "Memoria valorizada e Informe Técnico", to: "/app/expediente", icon: FileStack },
       { title: "Metrados", to: "/app/metrados", icon: HardHat },
       { title: "Valorizaciones", to: "/app/valuations", icon: WalletCards },
+      { title: "Reajustes", to: "/app/reajustes", icon: TrendingUp },
       { title: "Aprobaciones", to: "/app/approvals", icon: ClipboardCheck },
     ],
   },
