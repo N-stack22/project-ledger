@@ -457,4 +457,33 @@ describe("validateIneiRows — lotes grandes y rendimiento", () => {
     const floor = Math.max(dSmall, 0.5); // evita división por ~0
     expect(dLarge / floor).toBeLessThan(15);
   });
+
+  it("no genera picos ni leaks de memoria al validar lotes grandes repetidamente", () => {
+    // Requiere --expose-gc para mediciones estables; sin él es best-effort con cotas amplias.
+    const gc: (() => void) | undefined = (globalThis as unknown as { gc?: () => void }).gc;
+    const mem = () => process.memoryUsage().heapUsed;
+
+    // Warm-up + estabilización
+    validateIneiRows(genValidRows(5000));
+    gc?.();
+    const baseline = mem();
+
+    // Pico: una validación de 5000 filas no debe inflar el heap > ~50MB.
+    const rowsPeak = genValidRows(5000);
+    const beforePeak = mem();
+    const { valid } = validateIneiRows(rowsPeak);
+    const peak = mem();
+    expect(valid).toHaveLength(5000);
+    expect(peak - beforePeak).toBeLessThan(50 * 1024 * 1024);
+
+    // Leak: tras 20 iteraciones sin retener referencias, el heap no debe crecer
+    // >30MB respecto al baseline. Cota amplia para tolerar variación del runtime.
+    for (let i = 0; i < 20; i++) {
+      const rows = genValidRows(2000);
+      const { valid: v, errors: e } = validateIneiRows(rows);
+      if (v.length + e.length !== 2000) throw new Error("conteo inesperado");
+    }
+    gc?.();
+    expect(mem() - baseline).toBeLessThan(30 * 1024 * 1024);
+  });
 });
