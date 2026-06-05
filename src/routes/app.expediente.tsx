@@ -264,8 +264,8 @@ function ExpedientePage() {
       return;
     }
 
-    if (!project || !period) {
-      toast.error("No se pudieron cargar el proyecto o el período seleccionado.");
+    if (!project || !period || !user) {
+      toast.error("No se pudieron cargar el proyecto, el período o la sesión.");
       return;
     }
 
@@ -287,10 +287,41 @@ function ExpedientePage() {
         currency,
       });
 
+      // Persistir en bucket `expedientes` y registrar en `expediente_documents`.
+      // Ruta: {project_id}/val-{NN}/{timestamp}-{fileName} → primer segmento = project_id (requerido por RLS).
+      toast.loading("Archivando PDF en el expediente...", { id: tid });
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const valTag = `val-${String(period.period_number).padStart(2, "0")}`;
+      const storagePath = `${projectId}/${valTag}/${stamp}-${res.fileName}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("expedientes")
+        .upload(storagePath, res.blob, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+      if (upErr) throw new Error(`No se pudo guardar el PDF en el bucket: ${upErr.message}`);
+
+      const { error: insErr } = await supabase.from("expediente_documents").insert({
+        project_id: projectId,
+        period_id: periodId,
+        generated_by: user.id,
+        file_name: res.fileName,
+        file_path: storagePath,
+        total_valued: t.current,
+        total_deductions: totalDeductions,
+        net_amount: netAmount,
+      });
+      if (insErr) {
+        // Limpieza best-effort para no dejar archivo huérfano.
+        await supabase.storage.from("expedientes").remove([storagePath]);
+        throw new Error(`No se pudo registrar el documento: ${insErr.message}`);
+      }
+
       toast.dismiss(tid);
       if (lastUrl) URL.revokeObjectURL(lastUrl);
       setLastUrl(res.url);
-      toast.success("Memoria e informe técnico generados correctamente");
+      toast.success("Memoria e informe técnico generados y archivados correctamente");
 
       const link = document.createElement("a");
       link.href = res.url;
