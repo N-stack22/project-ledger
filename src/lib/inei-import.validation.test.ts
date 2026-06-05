@@ -471,7 +471,7 @@ describe("validateIneiRows — lotes grandes y rendimiento", () => {
 
     // Warm-up + estabilización
     validateIneiRows(genValidRows(5000));
-    gc?.();
+    gc();
     const baseline = mem();
 
     // Pico: una validación de 5000 filas no debe inflar el heap > ~50MB.
@@ -489,7 +489,7 @@ describe("validateIneiRows — lotes grandes y rendimiento", () => {
       const { valid: v, errors: e } = validateIneiRows(rows);
       if (v.length + e.length !== 2000) throw new Error("conteo inesperado");
     }
-    gc?.();
+    gc();
     expect(mem() - baseline).toBeLessThan(30 * 1024 * 1024);
   });
 });
