@@ -14,6 +14,7 @@ import { useWorkspace } from "@/components/app/workspace-provider";
 import { PageLayout } from "@/components/app/page-layout";
 import { RichTextEditor } from "@/components/app/rich-text-editor";
 import { AIDraftDialog } from "@/components/app/ai-draft-dialog";
+import { SignDocumentButton } from "@/components/app/sign-document-button";
 import {
   buildAuditSummary,
   buildDashboardMetrics,
