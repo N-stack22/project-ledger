@@ -102,7 +102,10 @@ export function WorkflowPanel({ kind, projectId, entityId, status, onChanged }: 
       updatePayload.approved_at = new Date().toISOString();
     }
 
-    const { error: updErr } = await supabase.from(table).update(updatePayload).eq("id", entityId);
+    const { error: updErr } = await supabase
+      .from(table)
+      .update(updatePayload as never)
+      .eq("id", entityId);
     if (updErr) {
       setError(updErr.message);
       setBusy(null);
