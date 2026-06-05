@@ -63,6 +63,7 @@ interface Reajuste {
   base_amount: number;
   k_value: number;
   reajuste_amount: number;
+  valuation_id: string | null;
   detail: any;
   created_at: string;
 }
