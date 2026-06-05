@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Users,
   WalletCards,
+  TrendingUp,
 } from "lucide-react";
 
 import {
