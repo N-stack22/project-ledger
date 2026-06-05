@@ -262,6 +262,81 @@ export type Database = {
           },
         ]
       }
+      firmas_electronicas: {
+        Row: {
+          content_hash: string
+          created_at: string
+          document_id: string
+          document_type: Database["public"]["Enums"]["signature_document_type"]
+          id: string
+          ip_address: string | null
+          project_id: string
+          revoke_reason: string | null
+          revoked_at: string | null
+          signed_at: string
+          signer_project_role:
+            | Database["public"]["Enums"]["project_role"]
+            | null
+          signer_user_id: string
+          updated_at: string
+          user_agent: string | null
+          verification_token: string
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          document_id: string
+          document_type: Database["public"]["Enums"]["signature_document_type"]
+          id?: string
+          ip_address?: string | null
+          project_id: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          signed_at?: string
+          signer_project_role?:
+            | Database["public"]["Enums"]["project_role"]
+            | null
+          signer_user_id: string
+          updated_at?: string
+          user_agent?: string | null
+          verification_token?: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          document_id?: string
+          document_type?: Database["public"]["Enums"]["signature_document_type"]
+          id?: string
+          ip_address?: string | null
+          project_id?: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          signed_at?: string
+          signer_project_role?:
+            | Database["public"]["Enums"]["project_role"]
+            | null
+          signer_user_id?: string
+          updated_at?: string
+          user_agent?: string | null
+          verification_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firmas_electronicas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "firmas_electronicas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidations: {
         Row: {
           approved_at: string | null
@@ -1241,6 +1316,11 @@ export type Database = {
         | "closed"
         | "archived"
         | "cancelled"
+      signature_document_type:
+        | "memoria_valorizada"
+        | "valuation"
+        | "liquidation"
+        | "expediente"
       valuation_status: "pending" | "reviewed" | "approved" | "rejected"
       workflow_action:
         | "created"
@@ -1421,6 +1501,12 @@ export const Constants = {
         "closed",
         "archived",
         "cancelled",
+      ],
+      signature_document_type: [
+        "memoria_valorizada",
+        "valuation",
+        "liquidation",
+        "expediente",
       ],
       valuation_status: ["pending", "reviewed", "approved", "rejected"],
       workflow_action: [
