@@ -141,6 +141,7 @@ export function ReajustesPage() {
                 formulas={formulas}
                 indices={indices}
                 reajustes={reajustes}
+                valuations={valuations.filter((v) => v.project_id === projectId)}
                 userId={user?.id}
                 onChange={loadData}
               />
