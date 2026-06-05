@@ -8,12 +8,20 @@ import { useAuth } from "@/lib/auth";
 import {
   canUserPerform,
   getAvailableTransitions,
+  getWorkflowTransitions,
   workflowEntityLabels,
   type WorkflowKind,
   type WorkflowStatus,
   type WorkflowTransition,
 } from "@/lib/workflow";
+import { notifyProjectRoles, type NotificationKind } from "@/lib/notifications";
 import { useWorkspace } from "@/components/app/workspace-provider";
+
+const linkByKind: Record<WorkflowKind, string> = {
+  memoria_valorizada: "/app/memorias",
+  valuation: "/app/valuations",
+  liquidation: "/app/liquidation",
+};
 
 const tableByKind: Record<WorkflowKind, "memoria_valorizada" | "valuations" | "liquidations"> = {
   memoria_valorizada: "memoria_valorizada",
