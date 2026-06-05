@@ -10,6 +10,7 @@ import type {
   ProfileRow,
   ProjectMemberRow,
   ProjectRow,
+  ReajusteRow,
   UserGlobalRoleRow,
   UserRoleRow,
   ValuationLineRow,
@@ -34,6 +35,7 @@ interface WorkspaceContextValue {
   userRoles: UserRoleRow[];
   projectMembers: ProjectMemberRow[];
   userGlobalRoles: UserGlobalRoleRow[];
+  reajustes: ReajusteRow[];
   auditLogs: Array<{ id: string; action: string; created_at: string; entity_type: string; actor_user_id: string | null }>;
   refresh: () => Promise<void>;
 }
