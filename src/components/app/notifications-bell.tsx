@@ -28,6 +28,7 @@ function timeAgo(iso: string): string {
 
 export function NotificationsBell() {
   const { user } = useAuth();
+  const router = useRouter();
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [open, setOpen] = useState(false);
 
