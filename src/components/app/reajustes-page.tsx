@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Calculator, Plus, Trash2, Upload, Download } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { importIneiIndices } from "@/lib/inei-import.functions";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
