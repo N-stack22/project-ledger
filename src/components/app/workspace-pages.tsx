@@ -15,6 +15,7 @@ import { PageLayout } from "@/components/app/page-layout";
 import { RichTextEditor } from "@/components/app/rich-text-editor";
 import { AIDraftDialog } from "@/components/app/ai-draft-dialog";
 import { SignDocumentButton } from "@/components/app/sign-document-button";
+import { ProjectMembersDialog } from "@/components/app/project-members-dialog";
 import {
   buildAuditSummary,
   buildDashboardMetrics,
@@ -1242,6 +1243,7 @@ export function ProjectsPage() {
                   {incomplete ? "Incompleta" : "Completa"}
                 </Badge>,
                 <div key={`a-${project.id}`} className="flex flex-wrap gap-2">
+                  <ProjectMembersDialog projectId={project.id} projectName={project.name} />
                   <EditProjectDialog project={project} onSaved={refresh} />
                   <DeleteOrArchiveProjectDialog
                     project={project}
