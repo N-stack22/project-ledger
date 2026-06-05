@@ -2276,7 +2276,7 @@ export function MemoriasPage() {
 }
 
 export function ValuationsPage() {
-  const { projects, budgetItems, metrados, memorias, valuations, valuationLines, refresh } = useWorkspace();
+  const { projects, budgetItems, metrados, memorias, valuations, valuationLines, profiles, refresh } = useWorkspace();
   const { user } = useAuth();
   const form = useForm<z.infer<typeof valuationSchema>>({ resolver: zodResolver(valuationSchema), defaultValues: { deductions_amount: 0, progress_percent: 0 } });
 
