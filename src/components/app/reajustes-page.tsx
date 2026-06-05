@@ -732,35 +732,57 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
   const [fallbackPeriod, setFallbackPeriod] = useState("");
   const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [showOnlyInvalid, setShowOnlyInvalid] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
-    setParsed(null); setErrors([]); setFileName(""); setFallbackPeriod("");
+    setParsed(null); setErrors([]); setWarnings([]); setFileName(""); setFallbackPeriod("");
+    setShowOnlyInvalid(false);
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const applyParse = (text: string, fp: string | null) => {
+    const res = parseIndicesCsv(text, fp);
+    setParsed(res.rows);
+    setErrors(res.errors);
+    setWarnings(res.warnings);
   };
 
   const onFile = async (file: File) => {
     setFileName(file.name);
     const text = await file.text();
-    const { rows, errors } = parseIndicesCsv(text, fallbackPeriod || null);
-    setParsed(rows);
-    setErrors(errors);
+    applyParse(text, fallbackPeriod || null);
   };
 
   const reparseWithPeriod = (p: string) => {
     setFallbackPeriod(p);
     const file = inputRef.current?.files?.[0];
     if (!file) return;
-    void file.text().then((text) => {
-      const { rows, errors } = parseIndicesCsv(text, p || null);
-      setParsed(rows); setErrors(errors);
-    });
+    void file.text().then((text) => applyParse(text, p || null));
   };
 
-  const valid = (parsed ?? []).filter((r) => !r.__error);
-  const invalid = (parsed ?? []).filter((r) => r.__error);
+  const valid = (parsed ?? []).filter((r) => r.__errors.length === 0);
+  const invalid = (parsed ?? []).filter((r) => r.__errors.length > 0);
+  const displayRows = (showOnlyInvalid ? invalid : (parsed ?? [])).slice(0, 200);
+
+  const downloadErrorReport = () => {
+    if (invalid.length === 0) return;
+    const lines = ["linea,campo,mensaje,period_month,code,value"];
+    for (const r of invalid) {
+      for (const e of r.__errors) {
+        const msg = `"${e.message.replace(/"/g, '""')}"`;
+        lines.push(`${r.__line},${e.field},${msg},${r.period_month},${r.code},${Number.isFinite(r.value) ? r.value : ""}`);
+      }
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "errores-importacion-indices.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const submit = async () => {
     if (valid.length === 0) return;
@@ -786,27 +808,27 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
     reset();
   };
 
-  const downloadTemplate = () => downloadIneiTemplate();
+  const fieldError = (r: ParsedRow, field: string) => r.__errors.find((e) => e.field === field)?.message;
 
-
+  const cellClass = (r: ParsedRow, field: string) =>
+    fieldError(r, field) ? "bg-destructive/10 text-destructive" : "";
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm"><Upload className="mr-1 h-4 w-4" /> Importar CSV</Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Importar índices INEI desde CSV</DialogTitle>
           <DialogDescription>
-            Columnas aceptadas: <code>code</code> (o <code>codigo</code>), <code>value</code> (o <code>valor</code>),
-            opcionales <code>period_month</code> y <code>description</code>. Si el CSV no incluye mes, indica uno por defecto abajo.
-            Filas con el mismo (mes, código) actualizan el valor existente.
+            Cabecera esperada: <code>period_month,code,description,value</code>. Solo <code>code</code> y <code>value</code> son obligatorias.
+            Filas con (mes, código) duplicado actualizan el valor existente.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          <Button variant="ghost" size="sm" onClick={downloadTemplate} className="w-fit">
+          <Button variant="ghost" size="sm" onClick={downloadIneiTemplate} className="w-fit">
             <Download className="mr-1 h-4 w-4" /> Descargar plantilla
           </Button>
 
@@ -832,50 +854,91 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
           </div>
 
           {errors.length > 0 ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
-              {errors.map((e, i) => <div key={i}>{e}</div>)}
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive space-y-1">
+              <div className="font-medium">No se puede importar — corrige la cabecera:</div>
+              {errors.map((e, i) => <div key={i}>• {e}</div>)}
+            </div>
+          ) : null}
+
+          {warnings.length > 0 ? (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-600 dark:text-amber-400 space-y-1">
+              <div className="font-medium">Avisos:</div>
+              {warnings.map((w, i) => <div key={i}>• {w}</div>)}
             </div>
           ) : null}
 
           {parsed ? (
             <div className="space-y-2">
-              <div className="flex gap-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant="secondary">Total: {parsed.length}</Badge>
                 <Badge variant="default">Válidas: {valid.length}</Badge>
                 {invalid.length > 0 ? <Badge variant="destructive">Inválidas: {invalid.length}</Badge> : null}
+                {invalid.length > 0 ? (
+                  <>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setShowOnlyInvalid((v) => !v)}>
+                      {showOnlyInvalid ? "Mostrar todas" : "Solo inválidas"}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={downloadErrorReport}>
+                      <Download className="mr-1 h-3 w-3" /> Descargar errores
+                    </Button>
+                  </>
+                ) : null}
               </div>
 
-              <div className="max-h-72 overflow-auto rounded-md border">
+              <div className="max-h-80 overflow-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Línea</TableHead>
-                      <TableHead>Mes</TableHead>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Estado</TableHead>
+                      <TableHead className="w-14">Línea</TableHead>
+                      <TableHead>period_month</TableHead>
+                      <TableHead>code</TableHead>
+                      <TableHead>description</TableHead>
+                      <TableHead>value</TableHead>
+                      <TableHead>Errores</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {parsed.slice(0, 200).map((r, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="text-xs">{r.__line}</TableCell>
-                        <TableCell>{r.period_month || "—"}</TableCell>
-                        <TableCell>{r.code || "—"}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{r.description ?? "—"}</TableCell>
-                        <TableCell>{Number.isFinite(r.value) ? r.value.toFixed(4) : "—"}</TableCell>
-                        <TableCell>
-                          {r.__error
-                            ? <Badge variant="destructive" className="text-[10px]">{r.__error}</Badge>
-                            : <Badge variant="secondary" className="text-[10px]">OK</Badge>}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {displayRows.map((r, i) => {
+                      const rowErr = r.__errors.find((e) => e.field === "_row")?.message;
+                      const fieldErrs = r.__errors.filter((e) => e.field !== "_row");
+                      return (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs align-top">{r.__line}</TableCell>
+                          <TableCell className={`align-top ${cellClass(r, "period_month")}`} title={fieldError(r, "period_month")}>
+                            {r.period_month || "—"}
+                          </TableCell>
+                          <TableCell className={`align-top ${cellClass(r, "code")}`} title={fieldError(r, "code")}>
+                            {r.code || "—"}
+                          </TableCell>
+                          <TableCell className={`max-w-[180px] truncate align-top ${cellClass(r, "description")}`} title={fieldError(r, "description") ?? r.description ?? ""}>
+                            {r.description ?? "—"}
+                          </TableCell>
+                          <TableCell className={`align-top ${cellClass(r, "value")}`} title={fieldError(r, "value")}>
+                            {Number.isFinite(r.value) ? r.value.toFixed(4) : "—"}
+                          </TableCell>
+                          <TableCell className="align-top">
+                            {r.__errors.length === 0 ? (
+                              <Badge variant="secondary" className="text-[10px]">OK</Badge>
+                            ) : (
+                              <div className="space-y-1">
+                                {rowErr ? <div className="text-[10px] text-destructive">⚠ {rowErr}</div> : null}
+                                {fieldErrs.map((e, j) => (
+                                  <div key={j} className="text-[10px] text-destructive">
+                                    <span className="font-mono">{e.field}</span>: {e.message}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
-                {parsed.length > 200 ? (
-                  <p className="px-3 py-2 text-xs text-muted-foreground">Mostrando 200 de {parsed.length} filas.</p>
+                {(showOnlyInvalid ? invalid.length : parsed.length) > 200 ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">
+                    Mostrando 200 de {showOnlyInvalid ? invalid.length : parsed.length} filas.
+                  </p>
                 ) : null}
               </div>
             </div>
@@ -884,7 +947,7 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancelar</Button>
-          <Button onClick={submit} disabled={saving || valid.length === 0}>
+          <Button onClick={submit} disabled={saving || valid.length === 0 || errors.length > 0}>
             {saving ? "Importando…" : `Importar ${valid.length} fila(s)`}
           </Button>
         </DialogFooter>
@@ -892,6 +955,7 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
     </Dialog>
   );
 }
+
 
 function IndicesTab({ indices, isAdmin, onChange }: { indices: IneiIndex[]; isAdmin: boolean; onChange: () => Promise<void> }) {
   const [period, setPeriod] = useState("");
