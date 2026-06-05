@@ -142,47 +142,65 @@ function Index() {
               </h2>
             </div>
             <span className="hidden font-mono text-xs uppercase tracking-widest text-muted-foreground md:inline">
-              06 / 06
+              09 / 09
             </span>
           </div>
 
           <div className="grid gap-px bg-border md:grid-cols-2 lg:grid-cols-3">
             {[
               {
-                icon: FileSpreadsheet,
+                icon: FolderKanban,
                 code: "01",
-                title: "Presupuesto base",
-                desc: "Importación Excel con detección automática de columnas y registro de partidas.",
+                title: "Proyectos",
+                desc: "Ficha técnica completa por obra, miembros y permisos por rol (admin, residente, supervisor, asistente, legal).",
+              },
+              {
+                icon: FileSpreadsheet,
+                code: "02",
+                title: "Presupuesto",
+                desc: "Registro de partidas del presupuesto base con unidades, metrados y precios unitarios.",
               },
               {
                 icon: Ruler,
-                code: "02",
+                code: "03",
                 title: "Metrados ejecutados",
-                desc: "Planillas detalladas por partida con fórmulas, sustento y consolidado mensual.",
+                desc: "Planillas detalladas por partida con fórmulas o dimensiones y consolidado mensual.",
               },
               {
                 icon: FileStack,
-                code: "03",
-                title: "Expediente mensual",
-                desc: "Memoria valorizada e informe técnico estructurado igual al expediente real.",
+                code: "04",
+                title: "Memoria valorizada",
+                desc: "Narrativa técnica del período: generalidades, metas, ocurrencias y conclusiones.",
               },
               {
                 icon: WalletCards,
-                code: "04",
+                code: "05",
                 title: "Valorizaciones",
-                desc: "Cálculo de valorización del período, deducciones y monto a pagar.",
+                desc: "Valorización actual, anterior, acumulada, saldo y deducciones del catálogo.",
+              },
+              {
+                icon: TrendingUp,
+                code: "06",
+                title: "Reajustes INEI",
+                desc: "Importación CSV de índices INEI con validación de columnas, formatos y duplicados.",
+              },
+              {
+                icon: FileText,
+                code: "07",
+                title: "Expediente PDF",
+                desc: "Expediente mensual generado 100% en cliente con react-pdf, listo para descarga.",
               },
               {
                 icon: Layers,
-                code: "05",
+                code: "08",
                 title: "Liquidación",
-                desc: "Cierre técnico-económico de obra con trazabilidad completa.",
+                desc: "Cierre técnico-económico de obra con trazabilidad acumulada.",
               },
               {
-                icon: Gauge,
-                code: "06",
-                title: "Dashboard",
-                desc: "Indicadores físicos y financieros en tiempo real con vista por proyecto.",
+                icon: CheckSquare,
+                code: "09",
+                title: "Aprobaciones",
+                desc: "Workflow de revisión y comentarios entre residente, supervisor y representante legal.",
               },
             ].map(({ icon: Icon, code, title, desc }) => (
               <div
