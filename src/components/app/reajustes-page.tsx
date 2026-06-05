@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Calculator, Plus, Trash2, Upload, Download } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { importIneiIndices } from "@/lib/inei-import.functions";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -728,6 +730,7 @@ function parseIndicesCsv(text: string, fallbackPeriod: string | null): ParseResu
 }
 
 function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
+  const importFn = useServerFn(importIneiIndices);
   const [open, setOpen] = useState(false);
   const [fallbackPeriod, setFallbackPeriod] = useState("");
   const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
@@ -787,25 +790,29 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
   const submit = async () => {
     if (valid.length === 0) return;
     setSaving(true);
-    const chunkSize = 500;
-    let ok = 0; let fail = 0; let firstErr: string | null = null;
-    for (let i = 0; i < valid.length; i += chunkSize) {
-      const slice = valid.slice(i, i + chunkSize).map((r) => ({
+    try {
+      const rows = valid.map((r) => ({
         period_month: r.period_month,
         code: r.code,
         description: r.description,
         value: r.value,
       }));
-      const { error } = await supabase.from("inei_indices").upsert(slice, { onConflict: "period_month,code" });
-      if (error) { fail += slice.length; if (!firstErr) firstErr = error.message; }
-      else ok += slice.length;
+      const result = await importFn({ data: { rows } });
+      if (!result.ok) {
+        const firstErrs = result.errors.slice(0, 3).map((e) => `L${e.line} ${e.field}: ${e.message}`).join(" | ");
+        toast.error(`Backend rechazó ${result.errors.length} error(es)`, { description: firstErrs });
+        setSaving(false);
+        return;
+      }
+      toast.success(`${result.inserted} índice(s) importados`);
+      await onChange();
+      setOpen(false);
+      reset();
+    } catch (err) {
+      toast.error("Error al importar", { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    if (fail > 0) toast.error(`Importación parcial: ${ok} ok, ${fail} fallidos`, { description: firstErr ?? undefined });
-    else toast.success(`${ok} índice(s) importados`);
-    await onChange();
-    setOpen(false);
-    reset();
   };
 
   const fieldError = (r: ParsedRow, field: string) => r.__errors.find((e) => e.field === field)?.message;
