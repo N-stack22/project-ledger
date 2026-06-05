@@ -2395,7 +2395,6 @@ export function ValuationsPage() {
                     </div>
                     <WorkflowPanel kind="valuation" projectId={valuation.project_id} entityId={valuation.id} status={valuation.status} onChanged={refresh} />
                   </div>
-                  </div>
                 );
               })}
             </CardContent>
