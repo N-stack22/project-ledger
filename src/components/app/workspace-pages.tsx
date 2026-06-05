@@ -1243,6 +1243,7 @@ export function ProjectsPage() {
                   {incomplete ? "Incompleta" : "Completa"}
                 </Badge>,
                 <div key={`a-${project.id}`} className="flex flex-wrap gap-2">
+                  <ProjectMembersDialog projectId={project.id} projectName={project.name} />
                   <EditProjectDialog project={project} onSaved={refresh} />
                   <DeleteOrArchiveProjectDialog
                     project={project}
