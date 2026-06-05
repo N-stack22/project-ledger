@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Loader2, PenLine, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/components/app/auth-provider";
+import { useAuth } from "@/lib/auth";
 import type { Database } from "@/integrations/supabase/types";
 
 type SignatureDocumentType = Database["public"]["Enums"]["signature_document_type"];
