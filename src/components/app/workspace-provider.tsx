@@ -72,7 +72,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const projectQuery = supabase.from("projects").select("*").order("created_at", { ascending: false });
     const importsQuery = supabase.from("budget_imports").select("*").order("created_at", { ascending: false });
     const itemsQuery = supabase.from("budget_items").select("*").order("sort_order", { ascending: true });
-    const metradosQuery = supabase.from("metrado_entries").select("*").order("entry_date", { ascending: false });
+    // `metrado_entries` ya no existe: derivamos la forma legacy a partir de
+    // `metrado_lines` + `valuation_periods` para mantener compatibilidad con la UI.
+    const metradoLinesQuery = supabase.from("metrado_lines").select("*").order("created_at", { ascending: false });
+    const valuationPeriodsQuery = supabase.from("valuation_periods").select("id,date_from,date_to");
     const memoriasQuery = supabase.from("memoria_valorizada").select("*").order("period_month", { ascending: false });
     const valuationsQuery = supabase.from("valuations").select("*").order("period_month", { ascending: false });
     const valuationLinesQuery = supabase.from("valuation_lines").select("*");
