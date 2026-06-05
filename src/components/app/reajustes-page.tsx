@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Calculator, Plus, Trash2 } from "lucide-react";
+import { Calculator, Plus, Trash2, Upload, Download } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -519,6 +519,268 @@ function FormulasTab({
 }
 
 // ============== ÍNDICES INEI ==============
+
+interface ParsedRow {
+  period_month: string;
+  code: string;
+  description: string | null;
+  value: number;
+  __line: number;
+  __error?: string;
+}
+
+function normalizePeriod(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if (/^\d{4}-\d{2}$/.test(v)) return `${v}-01`;
+  const m1 = v.match(/^(\d{4})[/-](\d{1,2})(?:[/-](\d{1,2}))?$/);
+  if (m1) {
+    const y = m1[1];
+    const mo = m1[2].padStart(2, "0");
+    const d = (m1[3] ?? "01").padStart(2, "0");
+    return `${y}-${mo}-${d}`;
+  }
+  const m2 = v.match(/^(\d{1,2})[/-](\d{4})$/);
+  if (m2) return `${m2[2]}-${m2[1].padStart(2, "0")}-01`;
+  return null;
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+  const sep = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i++; } else inQuotes = false;
+      } else cur += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === sep) { row.push(cur); cur = ""; }
+      else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
+      else if (c === "\r") { /* skip */ }
+      else cur += c;
+    }
+  }
+  if (cur.length || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+}
+
+function parseIndicesCsv(text: string, fallbackPeriod: string | null): { rows: ParsedRow[]; errors: string[] } {
+  const errors: string[] = [];
+  const matrix = parseCsv(text);
+  if (matrix.length === 0) return { rows: [], errors: ["El archivo está vacío."] };
+
+  const header = matrix[0].map((h) => h.trim().toLowerCase());
+  const idx = {
+    period: header.findIndex((h) => ["period", "period_month", "mes", "periodo", "fecha"].includes(h)),
+    code: header.findIndex((h) => ["code", "codigo", "código", "cod", "indice", "índice"].includes(h)),
+    description: header.findIndex((h) => ["description", "descripcion", "descripción", "nombre"].includes(h)),
+    value: header.findIndex((h) => ["value", "valor", "ip", "indice_valor"].includes(h)),
+  };
+
+  if (idx.code === -1 || idx.value === -1) {
+    errors.push("El CSV debe tener al menos las columnas 'code' y 'value' (también acepta 'codigo' y 'valor').");
+    return { rows: [], errors };
+  }
+
+  const rows: ParsedRow[] = [];
+  for (let i = 1; i < matrix.length; i++) {
+    const r = matrix[i];
+    const lineNum = i + 1;
+    const rawPeriod = idx.period >= 0 ? r[idx.period]?.trim() ?? "" : "";
+    const period = rawPeriod ? normalizePeriod(rawPeriod) : fallbackPeriod;
+    const code = r[idx.code]?.trim() ?? "";
+    const valueRaw = (r[idx.value] ?? "").trim().replace(",", ".");
+    const description = idx.description >= 0 ? (r[idx.description]?.trim() || null) : null;
+
+    if (!period) { rows.push({ period_month: "", code, description, value: 0, __line: lineNum, __error: "Mes inválido o ausente" }); continue; }
+    if (!code) { rows.push({ period_month: period, code: "", description, value: 0, __line: lineNum, __error: "Código vacío" }); continue; }
+    const value = Number(valueRaw);
+    if (!Number.isFinite(value)) { rows.push({ period_month: period, code, description, value: 0, __line: lineNum, __error: `Valor no numérico: "${valueRaw}"` }); continue; }
+    rows.push({ period_month: period, code, description, value, __line: lineNum });
+  }
+
+  return { rows, errors };
+}
+
+function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [fallbackPeriod, setFallbackPeriod] = useState("");
+  const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [fileName, setFileName] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    setParsed(null); setErrors([]); setFileName(""); setFallbackPeriod("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const onFile = async (file: File) => {
+    setFileName(file.name);
+    const text = await file.text();
+    const { rows, errors } = parseIndicesCsv(text, fallbackPeriod || null);
+    setParsed(rows);
+    setErrors(errors);
+  };
+
+  const reparseWithPeriod = (p: string) => {
+    setFallbackPeriod(p);
+    const file = inputRef.current?.files?.[0];
+    if (!file) return;
+    void file.text().then((text) => {
+      const { rows, errors } = parseIndicesCsv(text, p || null);
+      setParsed(rows); setErrors(errors);
+    });
+  };
+
+  const valid = (parsed ?? []).filter((r) => !r.__error);
+  const invalid = (parsed ?? []).filter((r) => r.__error);
+
+  const submit = async () => {
+    if (valid.length === 0) return;
+    setSaving(true);
+    const chunkSize = 500;
+    let ok = 0; let fail = 0; let firstErr: string | null = null;
+    for (let i = 0; i < valid.length; i += chunkSize) {
+      const slice = valid.slice(i, i + chunkSize).map((r) => ({
+        period_month: r.period_month,
+        code: r.code,
+        description: r.description,
+        value: r.value,
+      }));
+      const { error } = await supabase.from("inei_indices").upsert(slice, { onConflict: "period_month,code" });
+      if (error) { fail += slice.length; if (!firstErr) firstErr = error.message; }
+      else ok += slice.length;
+    }
+    setSaving(false);
+    if (fail > 0) toast.error(`Importación parcial: ${ok} ok, ${fail} fallidos`, { description: firstErr ?? undefined });
+    else toast.success(`${ok} índice(s) importados`);
+    await onChange();
+    setOpen(false);
+    reset();
+  };
+
+  const downloadTemplate = () => {
+    const sample = "period_month,code,description,value\n2026-06-01,39,Indice de mano de obra,128.45\n2026-06-01,47,Cemento Portland tipo I,142.10\n";
+    const blob = new Blob([sample], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "plantilla-indices-inei.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><Upload className="mr-1 h-4 w-4" /> Importar CSV</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Importar índices INEI desde CSV</DialogTitle>
+          <DialogDescription>
+            Columnas aceptadas: <code>code</code> (o <code>codigo</code>), <code>value</code> (o <code>valor</code>),
+            opcionales <code>period_month</code> y <code>description</code>. Si el CSV no incluye mes, indica uno por defecto abajo.
+            Filas con el mismo (mes, código) actualizan el valor existente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <Button variant="ghost" size="sm" onClick={downloadTemplate} className="w-fit">
+            <Download className="mr-1 h-4 w-4" /> Descargar plantilla
+          </Button>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Mes por defecto (si el CSV no trae columna de mes)</Label>
+              <Input
+                type="month"
+                value={fallbackPeriod ? fallbackPeriod.slice(0, 7) : ""}
+                onChange={(e) => reparseWithPeriod(e.target.value ? `${e.target.value}-01` : "")}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Archivo CSV</Label>
+              <Input
+                ref={inputRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); }}
+              />
+              {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
+            </div>
+          </div>
+
+          {errors.length > 0 ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+              {errors.map((e, i) => <div key={i}>{e}</div>)}
+            </div>
+          ) : null}
+
+          {parsed ? (
+            <div className="space-y-2">
+              <div className="flex gap-3 text-sm">
+                <Badge variant="secondary">Total: {parsed.length}</Badge>
+                <Badge variant="default">Válidas: {valid.length}</Badge>
+                {invalid.length > 0 ? <Badge variant="destructive">Inválidas: {invalid.length}</Badge> : null}
+              </div>
+
+              <div className="max-h-72 overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Línea</TableHead>
+                      <TableHead>Mes</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parsed.slice(0, 200).map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs">{r.__line}</TableCell>
+                        <TableCell>{r.period_month || "—"}</TableCell>
+                        <TableCell>{r.code || "—"}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{r.description ?? "—"}</TableCell>
+                        <TableCell>{Number.isFinite(r.value) ? r.value.toFixed(4) : "—"}</TableCell>
+                        <TableCell>
+                          {r.__error
+                            ? <Badge variant="destructive" className="text-[10px]">{r.__error}</Badge>
+                            : <Badge variant="secondary" className="text-[10px]">OK</Badge>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {parsed.length > 200 ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Mostrando 200 de {parsed.length} filas.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancelar</Button>
+          <Button onClick={submit} disabled={saving || valid.length === 0}>
+            {saving ? "Importando…" : `Importar ${valid.length} fila(s)`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function IndicesTab({ indices, isAdmin, onChange }: { indices: IneiIndex[]; isAdmin: boolean; onChange: () => Promise<void> }) {
   const [period, setPeriod] = useState("");
   const [code, setCode] = useState("");
@@ -550,9 +812,12 @@ function IndicesTab({ indices, isAdmin, onChange }: { indices: IneiIndex[]; isAd
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Índices unificados INEI</CardTitle>
-        <CardDescription>{isAdmin ? "Solo administradores globales pueden modificar." : "Consulta del catálogo INEI."}</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="text-base">Índices unificados INEI</CardTitle>
+          <CardDescription>{isAdmin ? "Solo administradores globales pueden modificar." : "Consulta del catálogo INEI."}</CardDescription>
+        </div>
+        {isAdmin ? <ImportCsvDialog onChange={onChange} /> : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {isAdmin ? (
