@@ -378,3 +378,83 @@ describe("validateIneiRows — period_month en formatos límite", () => {
     expect(errors[0].field).toBe("period_month");
   });
 });
+
+describe("validateIneiRows — lotes grandes y rendimiento", () => {
+  // Genera N filas válidas con (period_month, code) únicos.
+  function genValidRows(n: number): RawRow[] {
+    const rows: RawRow[] = [];
+    for (let i = 0; i < n; i++) {
+      const year = 2000 + (i % 500);
+      const month = ((i % 12) + 1).toString().padStart(2, "0");
+      rows.push({
+        period_month: `${year}-${month}`,
+        code: `IDX_${i}`,
+        value: 100 + (i % 1000) * 0.01,
+      });
+    }
+    return rows;
+  }
+
+  it("valida 1000 filas válidas sin errores", () => {
+    const rows = genValidRows(1000);
+    const { valid, errors } = validateIneiRows(rows);
+    expect(errors).toEqual([]);
+    expect(valid).toHaveLength(1000);
+  });
+
+  it("valida 5000 filas (límite del esquema) en <500ms", () => {
+    const rows = genValidRows(5000);
+    const start = performance.now();
+    const { valid, errors } = validateIneiRows(rows);
+    const elapsed = performance.now() - start;
+    expect(errors).toEqual([]);
+    expect(valid).toHaveLength(5000);
+    expect(elapsed).toBeLessThan(500);
+  });
+
+  it("detecta duplicados en lote grande con (period, code) repetidos", () => {
+    const rows = genValidRows(2000);
+    // Inserta 10 duplicados al final
+    for (let i = 0; i < 10; i++) {
+      rows.push({ ...rows[i] });
+    }
+    const { valid, errors } = validateIneiRows(rows);
+    expect(valid).toHaveLength(2000);
+    expect(errors).toHaveLength(10);
+    expect(errors.every((e) => e.field === "_row")).toBe(true);
+  });
+
+  it("lote grande mixto: separa válidas e inválidas manteniendo conteos exactos", () => {
+    const rows = genValidRows(1000);
+    // Corrompe cada 10ma fila con value inválido
+    for (let i = 0; i < rows.length; i += 10) {
+      rows[i] = { ...rows[i], value: "no-numero" };
+    }
+    const { valid, errors } = validateIneiRows(rows);
+    expect(valid).toHaveLength(900);
+    expect(errors).toHaveLength(100);
+    expect(errors.every((e) => e.field === "value")).toBe(true);
+  });
+
+  it("escala linealmente: 5000 filas no debe tardar >10x lo de 500 filas", () => {
+    const small = genValidRows(500);
+    const large = genValidRows(5000);
+
+    // warm-up para estabilizar JIT
+    validateIneiRows(small);
+    validateIneiRows(large);
+
+    const t1 = performance.now();
+    validateIneiRows(small);
+    const dSmall = performance.now() - t1;
+
+    const t2 = performance.now();
+    validateIneiRows(large);
+    const dLarge = performance.now() - t2;
+
+    // Esperamos crecimiento ~lineal (10x). Damos margen amplio (15x)
+    // para evitar flakiness en CI cargado, pero detecta una regresión a O(n²).
+    const floor = Math.max(dSmall, 0.5); // evita división por ~0
+    expect(dLarge / floor).toBeLessThan(15);
+  });
+});
