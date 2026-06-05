@@ -1264,52 +1264,90 @@ export function BudgetsPage() {
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof detectBudgetWorkbook>> | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [replaceExisting, setReplaceExisting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const projectHasBudget = useMemo(
+    () => budgetItems.some((item) => item.project_id === selectedProjectId),
+    [budgetItems, selectedProjectId],
+  );
 
   const uploadBudget = async () => {
     if (!file || !selectedProjectId || !user || !preview) return;
-    const storagePath = `${selectedProjectId}/${Date.now()}-${file.name}`;
-    const storage = await supabase.storage.from("budget-imports").upload(storagePath, file, { upsert: true });
-    if (storage.error) return setMessage(storage.error.message);
+    setUploading(true);
+    setMessage(null);
+    try {
+      if (replaceExisting && projectHasBudget) {
+        const delItems = await supabase.from("budget_items").delete().eq("project_id", selectedProjectId);
+        if (delItems.error) {
+          setMessage(`No se pudieron eliminar las partidas anteriores: ${delItems.error.message}`);
+          return;
+        }
+        const delImports = await supabase.from("budget_imports").delete().eq("project_id", selectedProjectId);
+        if (delImports.error) {
+          setMessage(`No se pudieron eliminar las importaciones anteriores: ${delImports.error.message}`);
+          return;
+        }
+      }
 
-    const importResult = await supabase
-      .from("budget_imports")
-      .insert({
+      const storagePath = `${selectedProjectId}/${Date.now()}-${file.name}`;
+      const storage = await supabase.storage.from("budget-imports").upload(storagePath, file, { upsert: true });
+      if (storage.error) {
+        setMessage(storage.error.message);
+        return;
+      }
+
+      const importResult = await supabase
+        .from("budget_imports")
+        .insert({
+          project_id: selectedProjectId,
+          uploaded_by: user.id,
+          file_name: file.name,
+          file_path: storagePath,
+          status: "imported",
+          column_mapping: preview.mapping,
+          validation_summary: { warnings: preview.warnings, importedRows: preview.rows.length },
+          imported_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (importResult.error) {
+        setMessage(importResult.error.message);
+        return;
+      }
+
+      const itemsPayload = preview.rows.map((row, index) => ({
         project_id: selectedProjectId,
-        uploaded_by: user.id,
-        file_name: file.name,
-        file_path: storagePath,
-        status: "imported",
-        column_mapping: preview.mapping,
-        validation_summary: { warnings: preview.warnings, importedRows: preview.rows.length },
-        imported_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+        budget_import_id: importResult.data.id,
+        item_code: row.item_code || null,
+        description: row.description,
+        unit: row.unit,
+        base_quantity: row.base_quantity,
+        unit_price: row.unit_price,
+        partial_amount: row.partial_amount,
+        hierarchy_level: row.hierarchy_level ?? null,
+        parent_item_code: row.parent_item_code ?? null,
+        category: row.category || null,
+        sort_order: index + 1,
+      }));
 
-    if (importResult.error) return setMessage(importResult.error.message);
-
-    const itemsPayload = preview.rows.map((row, index) => ({
-      project_id: selectedProjectId,
-      budget_import_id: importResult.data.id,
-      item_code: row.item_code || null,
-      description: row.description,
-      unit: row.unit,
-      base_quantity: row.base_quantity,
-      unit_price: row.unit_price,
-      partial_amount: row.partial_amount,
-      hierarchy_level: row.hierarchy_level ?? null,
-      parent_item_code: row.parent_item_code ?? null,
-      category: row.category || null,
-      sort_order: index + 1,
-    }));
-
-    const insertItems = await supabase.from("budget_items").insert(itemsPayload);
-    if (insertItems.error) return setMessage(insertItems.error.message);
-    setMessage(`Importación completada con ${preview.rows.length} partidas.`);
-    setPreview(null);
-    setFile(null);
-    await refresh();
+      const insertItems = await supabase.from("budget_items").insert(itemsPayload);
+      if (insertItems.error) {
+        setMessage(insertItems.error.message);
+        return;
+      }
+      toast.success(`Importación completada con ${preview.rows.length} partidas.`);
+      setMessage(`Importación completada con ${preview.rows.length} partidas.`);
+      setPreview(null);
+      setFile(null);
+      setReplaceExisting(false);
+      await refresh();
+    } finally {
+      setUploading(false);
+    }
   };
+
 
   const currentItems = budgetItems.filter((item) => item.project_id === selectedProjectId);
 
