@@ -165,6 +165,7 @@ function AppTopbar() {
               Volver a inicio
             </Link>
           </Button>
+          <NotificationsBell />
           <ThemeToggle />
           <Button variant="outline" onClick={() => void signOut()}>
             Cerrar sesión
