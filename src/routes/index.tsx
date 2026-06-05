@@ -3,7 +3,6 @@ import {
   ArrowRight,
   FileSpreadsheet,
   FileStack,
-  Gauge,
   HardHat,
   Layers,
   Ruler,
