@@ -239,10 +239,10 @@ function Index() {
 
           <ol className="mt-12 grid gap-px bg-border md:grid-cols-4">
             {[
-              ["A", "Importar", "Sube el presupuesto base en Excel."],
-              ["B", "Medir", "Registra metrados ejecutados del período."],
-              ["C", "Valorizar", "Genera memoria y valorización mensual."],
-              ["D", "Exportar", "Descarga expediente PDF listo para firma."],
+              ["A", "Proyecto", "Crea la obra y carga su ficha técnica."],
+              ["B", "Medir", "Registra partidas y metrados ejecutados."],
+              ["C", "Valorizar", "Genera memoria, valorización y deducciones."],
+              ["D", "Exportar", "Descarga el expediente PDF listo para firma."],
             ].map(([step, title, desc]) => (
               <li key={step} className="bg-card p-6">
                 <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
