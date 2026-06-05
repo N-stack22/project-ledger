@@ -269,6 +269,32 @@ function CalcTab({
               <Label className="text-xs">Monto base (valorización bruta)</Label>
               <Input type="number" step="0.01" value={baseAmount} onChange={(e) => setBaseAmount(e.target.value)} />
             </div>
+            <div className="space-y-1 md:col-span-3">
+              <Label className="text-xs">Vincular a valorización (opcional)</Label>
+              <Select
+                value={valuationId}
+                onValueChange={(v) => {
+                  setValuationId(v);
+                  if (v !== "none") {
+                    const val = valuations.find((x) => x.id === v);
+                    if (val) {
+                      setPeriodMonth(val.period_month);
+                      setBaseAmount(String(val.gross_amount ?? 0));
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Sin vincular" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin vincular</SelectItem>
+                  {valuations.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.period_month} · Bruto {formatMoney(Number(v.gross_amount))} · {v.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {calc ? (
