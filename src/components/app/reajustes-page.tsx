@@ -174,6 +174,7 @@ function CalcTab({
   formulas,
   indices,
   reajustes,
+  valuations,
   userId,
   onChange,
 }: {
@@ -181,12 +182,14 @@ function CalcTab({
   formulas: Formula[];
   indices: IneiIndex[];
   reajustes: Reajuste[];
+  valuations: Array<{ id: string; period_month: string; gross_amount: number; status: string }>;
   userId: string | undefined;
   onChange: () => Promise<void>;
 }) {
   const [formulaId, setFormulaId] = useState("");
   const [periodMonth, setPeriodMonth] = useState("");
   const [baseAmount, setBaseAmount] = useState("0");
+  const [valuationId, setValuationId] = useState<string>("none");
   const [saving, setSaving] = useState(false);
 
   const formula = formulas.find((f) => f.id === formulaId);
