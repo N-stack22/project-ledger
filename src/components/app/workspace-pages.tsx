@@ -2262,7 +2262,6 @@ export function MemoriasPage() {
                     </div>
                     <WorkflowPanel kind="memoria_valorizada" projectId={memoria.project_id} entityId={memoria.id} status={memoria.status} onChanged={refresh} />
                   </div>
-                  </div>
                 );
               })}
             </CardContent>
