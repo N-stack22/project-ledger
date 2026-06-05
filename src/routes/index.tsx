@@ -8,6 +8,10 @@ import {
   Layers,
   Ruler,
   WalletCards,
+  TrendingUp,
+  CheckSquare,
+  FolderKanban,
+  FileText,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
