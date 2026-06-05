@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { Bell, CheckCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
