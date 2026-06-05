@@ -2257,12 +2257,11 @@ export function MemoriasPage() {
                     </div>
                     <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{rich.plainText || memoria.executive_summary || "Sin detalle"}</p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => updateStatus(memoria.id, "in_review")}>Enviar a revisión</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateStatus(memoria.id, "approved")}>Aprobar</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateStatus(memoria.id, "rejected")}>Observar</Button>
                       {project ? <Button size="sm" variant="ghost" onClick={() => exportMemoriaPdf(project, memoria)}>PDF</Button> : null}
                       <SignDocumentButton projectId={memoria.project_id} documentId={memoria.id} documentType="memoria_valorizada" payload={{ id: memoria.id, title: memoria.title, period_month: memoria.period_month, executive_summary: memoria.executive_summary, content_json: memoria.content_json, version_number: memoria.version_number }} />
                     </div>
+                    <WorkflowPanel kind="memoria_valorizada" projectId={memoria.project_id} entityId={memoria.id} status={memoria.status} onChanged={refresh} />
+                  </div>
                   </div>
                 );
               })}
