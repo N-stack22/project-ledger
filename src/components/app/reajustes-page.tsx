@@ -669,14 +669,9 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
     reset();
   };
 
-  const downloadTemplate = () => {
-    const sample = "period_month,code,description,value\n2026-06-01,39,Indice de mano de obra,128.45\n2026-06-01,47,Cemento Portland tipo I,142.10\n";
-    const blob = new Blob([sample], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "plantilla-indices-inei.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const downloadTemplate = () => downloadIneiTemplate();
+
+
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
