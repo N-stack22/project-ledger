@@ -230,6 +230,7 @@ function CalcTab({
       base_amount: calc.base,
       k_value: calc.k,
       reajuste_amount: calc.reajuste,
+      valuation_id: valuationId !== "none" ? valuationId : null,
       detail: { monomios: calc.detail },
       created_by: userId,
     });
