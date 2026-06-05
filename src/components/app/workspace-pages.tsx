@@ -29,6 +29,8 @@ import {
   exportMemoriaPdf,
   exportMetradosWorkbook,
   exportValuationPdf,
+  exportValuationWorkbook,
+
   formatCurrency,
   formatDate,
   formatDateTime,
@@ -2274,7 +2276,7 @@ export function MemoriasPage() {
 }
 
 export function ValuationsPage() {
-  const { projects, budgetItems, metrados, memorias, valuations, valuationLines, refresh } = useWorkspace();
+  const { projects, budgetItems, metrados, memorias, valuations, valuationLines, profiles, refresh } = useWorkspace();
   const { user } = useAuth();
   const form = useForm<z.infer<typeof valuationSchema>>({ resolver: zodResolver(valuationSchema), defaultValues: { deductions_amount: 0, progress_percent: 0 } });
 
@@ -2375,6 +2377,23 @@ export function ValuationsPage() {
               {valuations.map((valuation) => {
                 const project = projects.find((item) => item.id === valuation.project_id);
                 const lines = valuationLines.filter((line) => line.valuation_id === valuation.id);
+                const projectItems = budgetItems.filter((it) => it.project_id === valuation.project_id);
+                const v = valuation as typeof valuation & {
+                  resident_reviewed_by?: string | null;
+                  resident_reviewed_at?: string | null;
+                  supervisor_reviewed_by?: string | null;
+                  supervisor_reviewed_at?: string | null;
+                  supervisor_comment?: string | null;
+                };
+                const nameOf = (uid?: string | null) => (uid ? profiles.find((p) => p.user_id === uid)?.full_name || null : null);
+                const exportCtx = {
+                  items: projectItems,
+                  residentName: nameOf(v.resident_reviewed_by),
+                  supervisorName: nameOf(v.supervisor_reviewed_by),
+                  residentReviewedAt: v.resident_reviewed_at ?? null,
+                  supervisorReviewedAt: v.supervisor_reviewed_at ?? null,
+                  supervisorComment: v.supervisor_comment ?? null,
+                };
                 return (
                   <div key={valuation.id} className="mb-4 rounded-lg border border-border p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2390,13 +2409,15 @@ export function ValuationsPage() {
                       <p>Neto: {formatCurrency(Number(valuation.net_amount), project?.currency_code || "PEN")}</p>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {project ? <Button size="sm" variant="ghost" onClick={() => exportValuationPdf(project, valuation, lines)}>PDF</Button> : null}
+                      {project ? <Button size="sm" variant="outline" onClick={() => exportValuationPdf(project, valuation, lines, exportCtx)}>PDF</Button> : null}
+                      {project ? <Button size="sm" variant="outline" onClick={() => exportValuationWorkbook(project, valuation, lines, exportCtx)}>Excel</Button> : null}
                       <SignDocumentButton projectId={valuation.project_id} documentId={valuation.id} documentType="valuation" payload={{ id: valuation.id, period_month: valuation.period_month, gross_amount: valuation.gross_amount, deductions_amount: valuation.deductions_amount, net_amount: valuation.net_amount, progress_percent: valuation.progress_percent, contract_type_snapshot: valuation.contract_type_snapshot }} />
                     </div>
                     <WorkflowPanel kind="valuation" projectId={valuation.project_id} entityId={valuation.id} status={valuation.status} onChanged={refresh} />
                   </div>
                 );
               })}
+
             </CardContent>
           </Card>
         </div>

@@ -7,6 +7,7 @@ import type {
   AuditSummary,
   BudgetColumnKey,
   BudgetDetectionResult,
+  BudgetItemRow,
   BudgetPreviewRow,
   ContractType,
   DashboardMetric,
@@ -19,6 +20,7 @@ import type {
   ValuationRow,
 } from "@/lib/domain";
 import { parseRichTextDocument, stripHtml } from "@/lib/domain";
+
 
 export const roleLabels: Record<AppRole, string> = {
   admin: "Admin",
@@ -470,36 +472,192 @@ export function exportMemoriaPdf(project: ProjectRow, memoria: MemoriaRow) {
   doc.save(`memoria-${project.code}-${memoria.period_month}.pdf`);
 }
 
-export function exportValuationPdf(project: ProjectRow, valuation: ValuationRow, lines: ValuationLineRow[]) {
-  const doc = new jsPDF();
-  doc.setFontSize(18);
-  doc.text("Reporte de valorización", 14, 18);
-  doc.setFontSize(11);
-  doc.text(`Proyecto: ${project.name}`, 14, 28);
-  doc.text(`Periodo: ${getPeriodLabel(valuation.period_month)}`, 14, 35);
-  doc.text(`Contrato: ${contractTypeLabels[valuation.contract_type_snapshot]}`, 14, 42);
-  doc.text(`Neto: ${formatCurrency(Number(valuation.net_amount), project.currency_code)}`, 14, 49);
+export interface ValuationExportContext {
+  items?: BudgetItemRow[];
+  residentName?: string | null;
+  supervisorName?: string | null;
+  residentReviewedAt?: string | null;
+  supervisorReviewedAt?: string | null;
+  supervisorComment?: string | null;
+}
 
+function buildItemIndex(items?: BudgetItemRow[]) {
+  const map = new Map<string, BudgetItemRow>();
+  (items ?? []).forEach((it) => map.set(it.id, it));
+  return map;
+}
+
+export function exportValuationPdf(
+  project: ProjectRow,
+  valuation: ValuationRow,
+  lines: ValuationLineRow[],
+  ctx: ValuationExportContext = {},
+) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const itemIdx = buildItemIndex(ctx.items);
+  const currency = project.currency_code || "PEN";
+
+  // Header
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("VALORIZACIÓN DE OBRA", pageWidth / 2, 16, { align: "center" });
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Documento Nº VAL-${project.code}-${valuation.period_month}`, pageWidth / 2, 22, { align: "center" });
+
+  // Project info block
   autoTable(doc, {
-    startY: 58,
-    head: [["Partida", "Cantidad período", "Acumulado", "Precio", "Subtotal"]],
-    body: lines.map((line) => [
-      line.item_id,
-      formatNumber(Number(line.quantity_period), 4),
-      formatNumber(Number(line.quantity_accumulated), 4),
-      formatCurrency(Number(line.unit_price_applied), project.currency_code),
-      formatCurrency(Number(line.line_amount), project.currency_code),
-    ]),
-    styles: {
-      fontSize: 9,
-    },
-    headStyles: {
-      fillColor: [22, 78, 163],
+    startY: 28,
+    theme: "plain",
+    styles: { fontSize: 9, cellPadding: 1.5 },
+    body: [
+      ["Proyecto:", project.name, "Código:", project.code],
+      ["Cliente:", project.client_name || "—", "Moneda:", currency],
+      ["Contrato:", contractTypeLabels[valuation.contract_type_snapshot], "Monto contractual:", formatCurrency(Number(project.contract_amount), currency)],
+      ["Periodo:", getPeriodLabel(valuation.period_month), "Estado:", valuationStatusLabels[valuation.status]],
+      ["Avance del periodo:", `${formatNumber(Number(valuation.progress_percent || 0), 2)} %`, "", ""],
+    ],
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 32 },
+      1: { cellWidth: 70 },
+      2: { fontStyle: "bold", cellWidth: 34 },
+      3: { cellWidth: "auto" },
     },
   });
 
+  // Lines table
+  // @ts-expect-error autoTable adds lastAutoTable
+  const startY = (doc.lastAutoTable?.finalY ?? 60) + 4;
+  autoTable(doc, {
+    startY,
+    head: [["Código", "Descripción", "Und.", "Cant. periodo", "Acumulado", "P. Unit.", "Subtotal"]],
+    body: lines.map((line) => {
+      const item = itemIdx.get(line.item_id);
+      return [
+        item?.item_code || "—",
+        item?.description || line.item_id,
+        item?.unit || "—",
+        formatNumber(Number(line.quantity_period), 4),
+        formatNumber(Number(line.quantity_accumulated), 4),
+        formatCurrency(Number(line.unit_price_applied), currency),
+        formatCurrency(Number(line.line_amount), currency),
+      ];
+    }),
+    styles: { fontSize: 8, cellPadding: 1.5 },
+    headStyles: { fillColor: [22, 78, 163], halign: "center" },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      1: { cellWidth: "auto" },
+      2: { cellWidth: 12, halign: "center" },
+      3: { cellWidth: 22, halign: "right" },
+      4: { cellWidth: 22, halign: "right" },
+      5: { cellWidth: 24, halign: "right" },
+      6: { cellWidth: 28, halign: "right" },
+    },
+  });
+
+  // Totals
+  // @ts-expect-error autoTable adds lastAutoTable
+  const totalsY = (doc.lastAutoTable?.finalY ?? startY) + 4;
+  autoTable(doc, {
+    startY: totalsY,
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 2 },
+    body: [
+      ["Monto bruto", formatCurrency(Number(valuation.gross_amount), currency)],
+      ["Deducciones", formatCurrency(Number(valuation.deductions_amount), currency)],
+      [{ content: "MONTO NETO", styles: { fontStyle: "bold" } }, { content: formatCurrency(Number(valuation.net_amount), currency), styles: { fontStyle: "bold" } }],
+    ],
+    columnStyles: {
+      0: { cellWidth: 60, fontStyle: "bold" },
+      1: { cellWidth: 60, halign: "right" },
+    },
+    margin: { left: pageWidth - 130 },
+  });
+
+  // Supervisor comment
+  // @ts-expect-error autoTable adds lastAutoTable
+  let cursorY = (doc.lastAutoTable?.finalY ?? totalsY) + 8;
+  if (ctx.supervisorComment) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("Observaciones de supervisión:", 14, cursorY);
+    doc.setFont("helvetica", "normal");
+    const wrapped = doc.splitTextToSize(ctx.supervisorComment, pageWidth - 28);
+    doc.text(wrapped, 14, cursorY + 5);
+    cursorY += 5 + wrapped.length * 4 + 6;
+  }
+
+  // Signatures
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const signY = Math.max(cursorY + 20, pageHeight - 40);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  const colW = (pageWidth - 28) / 2;
+  doc.line(20, signY, 20 + colW - 10, signY);
+  doc.line(20 + colW + 10, signY, pageWidth - 20, signY);
+  doc.text(ctx.residentName || "Residente de obra", 20 + (colW - 10) / 2, signY + 4, { align: "center" });
+  doc.text("Residente de obra", 20 + (colW - 10) / 2, signY + 8, { align: "center" });
+  if (ctx.residentReviewedAt) {
+    doc.setFontSize(8);
+    doc.text(formatDate(ctx.residentReviewedAt), 20 + (colW - 10) / 2, signY + 12, { align: "center" });
+    doc.setFontSize(9);
+  }
+  doc.text(ctx.supervisorName || "Supervisor / Inspector", 20 + colW + 10 + (colW - 10) / 2, signY + 4, { align: "center" });
+  doc.text("Supervisor / Inspector", 20 + colW + 10 + (colW - 10) / 2, signY + 8, { align: "center" });
+  if (ctx.supervisorReviewedAt) {
+    doc.setFontSize(8);
+    doc.text(formatDate(ctx.supervisorReviewedAt), 20 + colW + 10 + (colW - 10) / 2, signY + 12, { align: "center" });
+  }
+
   doc.save(`valorizacion-${project.code}-${valuation.period_month}.pdf`);
 }
+
+export function exportValuationWorkbook(
+  project: ProjectRow,
+  valuation: ValuationRow,
+  lines: ValuationLineRow[],
+  ctx: ValuationExportContext = {},
+) {
+  const itemIdx = buildItemIndex(ctx.items);
+  const currency = project.currency_code || "PEN";
+
+  downloadWorkbook(`valorizacion-${project.code}-${valuation.period_month}`, {
+    Resumen: [
+      { Campo: "Proyecto", Valor: project.name },
+      { Campo: "Código", Valor: project.code },
+      { Campo: "Cliente", Valor: project.client_name || "" },
+      { Campo: "Contrato", Valor: contractTypeLabels[valuation.contract_type_snapshot] },
+      { Campo: "Monto contractual", Valor: Number(project.contract_amount) },
+      { Campo: "Moneda", Valor: currency },
+      { Campo: "Periodo", Valor: getPeriodLabel(valuation.period_month) },
+      { Campo: "Estado", Valor: valuationStatusLabels[valuation.status] },
+      { Campo: "Avance (%)", Valor: Number(valuation.progress_percent || 0) },
+      { Campo: "Monto bruto", Valor: Number(valuation.gross_amount) },
+      { Campo: "Deducciones", Valor: Number(valuation.deductions_amount) },
+      { Campo: "Monto neto", Valor: Number(valuation.net_amount) },
+      { Campo: "Residente", Valor: ctx.residentName || "" },
+      { Campo: "Revisado por residente", Valor: ctx.residentReviewedAt ? formatDate(ctx.residentReviewedAt) : "" },
+      { Campo: "Supervisor", Valor: ctx.supervisorName || "" },
+      { Campo: "Revisado por supervisor", Valor: ctx.supervisorReviewedAt ? formatDate(ctx.supervisorReviewedAt) : "" },
+      { Campo: "Observaciones", Valor: ctx.supervisorComment || "" },
+    ],
+    Partidas: lines.map((line) => {
+      const item = itemIdx.get(line.item_id);
+      return {
+        Codigo: item?.item_code || "",
+        Descripcion: item?.description || line.item_id,
+        Unidad: item?.unit || "",
+        CantidadPeriodo: Number(line.quantity_period),
+        CantidadAcumulada: Number(line.quantity_accumulated),
+        PrecioUnitario: Number(line.unit_price_applied),
+        Subtotal: Number(line.line_amount),
+      };
+    }),
+  });
+}
+
 
 export function exportLiquidationPdf(project: ProjectRow, liquidation: LiquidationRow, valuations: ValuationRow[]) {
   const doc = new jsPDF();
