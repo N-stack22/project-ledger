@@ -1378,10 +1378,22 @@ export function BudgetsPage() {
                   {preview.warnings.length ? <p className="mt-1 text-xs text-muted-foreground">{preview.warnings.join(" ")}</p> : <p className="mt-1 text-xs text-muted-foreground">Revisa la vista previa completa antes de confirmar la importación.</p>}
                 </div>
               ) : null}
+              {projectHasBudget ? (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
+                  <p className="font-medium">Este proyecto ya tiene un presupuesto cargado.</p>
+                  <label className="mt-2 flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)} />
+                    Reemplazar presupuesto existente (elimina partidas e importaciones anteriores)
+                  </label>
+                </div>
+              ) : null}
               {message ? <p className="text-sm text-primary">{message}</p> : null}
-              <Button onClick={() => void uploadBudget()} disabled={!preview || !selectedProjectId}>Importar presupuesto</Button>
+              <Button onClick={() => void uploadBudget()} disabled={!preview || !selectedProjectId || uploading || (projectHasBudget && !replaceExisting)}>
+                {uploading ? "Importando…" : "Importar presupuesto"}
+              </Button>
             </CardContent>
           </Card>
+
           {preview ? (() => {
             const sortedPreviewRows = sortBudgetItemsHierarchically(preview.rows);
             const previewStats = getBudgetHierarchyStats(preview.rows);
