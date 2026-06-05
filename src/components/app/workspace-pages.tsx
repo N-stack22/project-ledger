@@ -2403,11 +2403,24 @@ export function ValuationsPage() {
                       </div>
                       <Badge variant="outline">{valuationStatusLabels[valuation.status]}</Badge>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
-                      <p>Bruto: {formatCurrency(Number(valuation.gross_amount), project?.currency_code || "PEN")}</p>
-                      <p>Deducciones: {formatCurrency(Number(valuation.deductions_amount), project?.currency_code || "PEN")}</p>
-                      <p>Neto: {formatCurrency(Number(valuation.net_amount), project?.currency_code || "PEN")}</p>
-                    </div>
+                    {(() => {
+                      const linkedReajustes = reajustes.filter((r) => r.valuation_id === valuation.id);
+                      const reajusteTotal = linkedReajustes.reduce((sum, r) => sum + Number(r.reajuste_amount), 0);
+                      const netoConReajuste = Number(valuation.net_amount) + reajusteTotal;
+                      return (
+                        <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
+                          <p>Bruto: {formatCurrency(Number(valuation.gross_amount), project?.currency_code || "PEN")}</p>
+                          <p>Deducciones: {formatCurrency(Number(valuation.deductions_amount), project?.currency_code || "PEN")}</p>
+                          <p>Neto: {formatCurrency(Number(valuation.net_amount), project?.currency_code || "PEN")}</p>
+                          {linkedReajustes.length > 0 ? (
+                            <>
+                              <p className="text-primary">Reajuste (K): {formatCurrency(reajusteTotal, project?.currency_code || "PEN")}</p>
+                              <p className="font-medium text-foreground md:col-span-2">Neto + reajuste: {formatCurrency(netoConReajuste, project?.currency_code || "PEN")}</p>
+                            </>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
                     <div className="mt-4 flex flex-wrap gap-2">
                       {project ? <Button size="sm" variant="outline" onClick={() => exportValuationPdf(project, valuation, lines, exportCtx)}>PDF</Button> : null}
                       {project ? <Button size="sm" variant="outline" onClick={() => exportValuationWorkbook(project, valuation, lines, exportCtx)}>Excel</Button> : null}
