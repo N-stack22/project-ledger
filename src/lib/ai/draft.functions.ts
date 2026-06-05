@@ -73,14 +73,33 @@ export const generateTechnicalDraft = createServerFn({ method: "POST" })
       .order("sort_order", { ascending: true });
     const budgetItems = budgetItemsData ?? [];
 
-    // 3) Metrados validados del período
-    const { data: metradosData } = await supabase
-      .from("metrado_entries")
-      .select("item_id, quantity, entry_date, status")
-      .eq("project_id", data.project_id)
-      .eq("period_month", data.period_month)
-      .eq("status", "validated");
-    const metrados = metradosData ?? [];
+    // 3) Metrados del período: leemos desde `metrado_lines` filtrando por los
+    //    `valuation_periods` cuyo mes coincide con `period_month`.
+    const { data: periodsForMonth } = await supabase
+      .from("valuation_periods")
+      .select("id, date_from, date_to")
+      .eq("project_id", data.project_id);
+    const matchingPeriodIds = (periodsForMonth ?? [])
+      .filter((p) => `${p.date_from.slice(0, 7)}-01` === data.period_month)
+      .map((p) => p.id);
+
+    type MetradoCtx = { item_id: string; quantity: number; entry_date: string };
+    let metrados: MetradoCtx[] = [];
+    if (matchingPeriodIds.length > 0) {
+      const { data: metradosData } = await supabase
+        .from("metrado_lines")
+        .select("item_id, partial, period_id")
+        .eq("project_id", data.project_id)
+        .in("period_id", matchingPeriodIds);
+      const periodEndById = new Map(
+        (periodsForMonth ?? []).map((p) => [p.id, p.date_to] as const),
+      );
+      metrados = (metradosData ?? []).map((m) => ({
+        item_id: m.item_id,
+        quantity: Number(m.partial ?? 0),
+        entry_date: periodEndById.get(m.period_id) ?? data.period_month,
+      }));
+    }
 
     // 4) Valorización (si ya existe)
     const { data: valuation } = await supabase

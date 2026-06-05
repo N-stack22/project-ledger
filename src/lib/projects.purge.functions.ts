@@ -16,7 +16,7 @@ type PurgeChildTable =
   | "valuations"
   | "memoria_valorizada"
   | "metrado_lines"
-  | "metrado_entries"
+  
   | "budget_items"
   | "budget_imports"
   | "valuation_periods"
@@ -34,7 +34,6 @@ const CHILD_TABLES = [
   "valuations",
   "memoria_valorizada",
   "metrado_lines",
-  "metrado_entries",
   "budget_items",
   "budget_imports",
   "valuation_periods",

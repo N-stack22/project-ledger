@@ -511,7 +511,6 @@ export function isFichaTecnicaIncomplete(project: EditableProject | undefined | 
 type ProjectMovementCheck = {
   budget_imports: number;
   budget_items: number;
-  metrado_entries: number;
   metrado_lines: number;
   memoria_valorizada: number;
   valuations: number;
@@ -524,7 +523,6 @@ async function checkProjectMovement(projectId: string): Promise<ProjectMovementC
   const tables = [
     "budget_imports",
     "budget_items",
-    "metrado_entries",
     "metrado_lines",
     "memoria_valorizada",
     "valuations",
@@ -548,8 +546,7 @@ async function checkProjectMovement(projectId: string): Promise<ProjectMovementC
 const movementLabels: Record<keyof ProjectMovementCheck, string> = {
   budget_imports: "Importaciones de presupuesto",
   budget_items: "Partidas de presupuesto",
-  metrado_entries: "Metrados (asientos)",
-  metrado_lines: "Líneas de metrado detallado",
+  metrado_lines: "Líneas de metrado",
   memoria_valorizada: "Memorias valorizadas",
   valuations: "Valorizaciones",
   valuation_periods: "Períodos de valorización",
