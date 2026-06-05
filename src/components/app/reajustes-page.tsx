@@ -520,6 +520,31 @@ function FormulasTab({
 
 // ============== ÍNDICES INEI ==============
 
+function downloadIneiTemplate() {
+  const lines = [
+    "# Plantilla de Índices Unificados INEI",
+    "# Columnas obligatorias: code, value",
+    "# Columnas opcionales: period_month (YYYY-MM-DD o YYYY-MM), description",
+    "# Si omites period_month, indica el mes por defecto en el diálogo de importación.",
+    "# El separador puede ser coma (,) o punto y coma (;).",
+    "# Decimales con punto (128.45). Filas con (mes, código) duplicado actualizan el valor.",
+    "period_month,code,description,value",
+    "2026-06-01,39,Indice de mano de obra,128.45",
+    "2026-06-01,47,Cemento Portland tipo I,142.10",
+    "2026-06-01,48,Acero de construcción,156.30",
+    "2026-06-01,49,Madera para construcción,134.20",
+    "",
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "plantilla-indices-inei.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
 interface ParsedRow {
   period_month: string;
   code: string;
