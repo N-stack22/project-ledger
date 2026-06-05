@@ -59,6 +59,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [userGlobalRoles, setUserGlobalRoles] = useState<UserGlobalRoleRow[]>([]);
+  const [reajustes, setReajustes] = useState<ReajusteRow[]>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; created_at: string; entity_type: string; actor_user_id: string | null }>>([]);
 
   const refresh = async () => {
