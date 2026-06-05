@@ -105,6 +105,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       auditResult,
       projectMembersResult,
       userGlobalRolesResult,
+      reajustesResult,
     ] = await Promise.all([
       projectQuery,
       importsQuery,
@@ -120,6 +121,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       auditQuery,
       projectMembersQuery,
       userGlobalRolesQuery,
+      reajustesQuery,
     ]);
 
     setProjects(projectsResult.data ?? []);
