@@ -520,6 +520,31 @@ function FormulasTab({
 
 // ============== ÍNDICES INEI ==============
 
+function downloadIneiTemplate() {
+  const lines = [
+    "# Plantilla de Índices Unificados INEI",
+    "# Columnas obligatorias: code, value",
+    "# Columnas opcionales: period_month (YYYY-MM-DD o YYYY-MM), description",
+    "# Si omites period_month, indica el mes por defecto en el diálogo de importación.",
+    "# El separador puede ser coma (,) o punto y coma (;).",
+    "# Decimales con punto (128.45). Filas con (mes, código) duplicado actualizan el valor.",
+    "period_month,code,description,value",
+    "2026-06-01,39,Indice de mano de obra,128.45",
+    "2026-06-01,47,Cemento Portland tipo I,142.10",
+    "2026-06-01,48,Acero de construcción,156.30",
+    "2026-06-01,49,Madera para construcción,134.20",
+    "",
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "plantilla-indices-inei.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
 interface ParsedRow {
   period_month: string;
   code: string;
@@ -669,14 +694,9 @@ function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
     reset();
   };
 
-  const downloadTemplate = () => {
-    const sample = "period_month,code,description,value\n2026-06-01,39,Indice de mano de obra,128.45\n2026-06-01,47,Cemento Portland tipo I,142.10\n";
-    const blob = new Blob([sample], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "plantilla-indices-inei.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const downloadTemplate = () => downloadIneiTemplate();
+
+
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
@@ -817,7 +837,12 @@ function IndicesTab({ indices, isAdmin, onChange }: { indices: IneiIndex[]; isAd
           <CardTitle className="text-base">Índices unificados INEI</CardTitle>
           <CardDescription>{isAdmin ? "Solo administradores globales pueden modificar." : "Consulta del catálogo INEI."}</CardDescription>
         </div>
-        {isAdmin ? <ImportCsvDialog onChange={onChange} /> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={downloadIneiTemplate}>
+            <Download className="mr-1 h-4 w-4" /> Plantilla CSV
+          </Button>
+          {isAdmin ? <ImportCsvDialog onChange={onChange} /> : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {isAdmin ? (
