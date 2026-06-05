@@ -7,6 +7,7 @@ import type {
   AuditSummary,
   BudgetColumnKey,
   BudgetDetectionResult,
+  BudgetItemRow,
   BudgetPreviewRow,
   ContractType,
   DashboardMetric,
@@ -19,6 +20,7 @@ import type {
   ValuationRow,
 } from "@/lib/domain";
 import { parseRichTextDocument, stripHtml } from "@/lib/domain";
+
 
 export const roleLabels: Record<AppRole, string> = {
   admin: "Admin",
