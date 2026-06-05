@@ -459,13 +459,19 @@ describe("validateIneiRows — lotes grandes y rendimiento", () => {
   });
 
   it("no genera picos ni leaks de memoria al validar lotes grandes repetidamente", () => {
-    // Requiere --expose-gc para mediciones estables; sin él es best-effort con cotas amplias.
-    const gc: (() => void) | undefined = (globalThis as unknown as { gc?: () => void }).gc;
+    // CI debe ejecutar vitest con --expose-gc (configurado en vitest.config.ts)
+    // para que las mediciones de heap sean estables y detecten leaks reales.
+    const gc = (globalThis as unknown as { gc?: () => void }).gc;
+    if (typeof gc !== "function") {
+      throw new Error(
+        "global.gc no está disponible: ejecutar Node con --expose-gc (ver vitest.config.ts)."
+      );
+    }
     const mem = () => process.memoryUsage().heapUsed;
 
     // Warm-up + estabilización
     validateIneiRows(genValidRows(5000));
-    gc?.();
+    gc();
     const baseline = mem();
 
     // Pico: una validación de 5000 filas no debe inflar el heap > ~50MB.
@@ -483,7 +489,7 @@ describe("validateIneiRows — lotes grandes y rendimiento", () => {
       const { valid: v, errors: e } = validateIneiRows(rows);
       if (v.length + e.length !== 2000) throw new Error("conteo inesperado");
     }
-    gc?.();
+    gc();
     expect(mem() - baseline).toBeLessThan(30 * 1024 * 1024);
   });
 });

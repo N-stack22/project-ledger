@@ -7,6 +7,12 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // Expose Node's global.gc so memory-leak tests can force collection
+    // and obtain reliable heap measurements in CI.
+    pool: "forks",
+    forks: {
+      execArgv: ["--expose-gc"],
+    },
   },
   resolve: {
     alias: {
