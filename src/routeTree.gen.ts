@@ -16,6 +16,7 @@ import { Route as AppValuationsRouteImport } from './routes/app.valuations'
 import { Route as AppUsersRouteImport } from './routes/app.users'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppReportsRouteImport } from './routes/app.reports'
+import { Route as AppReajustesRouteImport } from './routes/app.reajustes'
 import { Route as AppProjectsRouteImport } from './routes/app.projects'
 import { Route as AppMetradosRouteImport } from './routes/app.metrados'
 import { Route as AppMemoriasRouteImport } from './routes/app.memorias'
@@ -59,6 +60,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
 const AppReportsRoute = AppReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReajustesRoute = AppReajustesRouteImport.update({
+  id: '/reajustes',
+  path: '/reajustes',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjectsRoute = AppProjectsRouteImport.update({
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/app/memorias': typeof AppMemoriasRoute
   '/app/metrados': typeof AppMetradosRoute
   '/app/projects': typeof AppProjectsRoute
+  '/app/reajustes': typeof AppReajustesRoute
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/users': typeof AppUsersRoute
@@ -138,6 +145,7 @@ export interface FileRoutesByTo {
   '/app/memorias': typeof AppMemoriasRoute
   '/app/metrados': typeof AppMetradosRoute
   '/app/projects': typeof AppProjectsRoute
+  '/app/reajustes': typeof AppReajustesRoute
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/users': typeof AppUsersRoute
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/app/memorias': typeof AppMemoriasRoute
   '/app/metrados': typeof AppMetradosRoute
   '/app/projects': typeof AppProjectsRoute
+  '/app/reajustes': typeof AppReajustesRoute
   '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/users': typeof AppUsersRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/app/memorias'
     | '/app/metrados'
     | '/app/projects'
+    | '/app/reajustes'
     | '/app/reports'
     | '/app/settings'
     | '/app/users'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
     | '/app/memorias'
     | '/app/metrados'
     | '/app/projects'
+    | '/app/reajustes'
     | '/app/reports'
     | '/app/settings'
     | '/app/users'
@@ -213,6 +224,7 @@ export interface FileRouteTypes {
     | '/app/memorias'
     | '/app/metrados'
     | '/app/projects'
+    | '/app/reajustes'
     | '/app/reports'
     | '/app/settings'
     | '/app/users'
@@ -274,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/app/reports'
       preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/reajustes': {
+      id: '/app/reajustes'
+      path: '/reajustes'
+      fullPath: '/app/reajustes'
+      preLoaderRoute: typeof AppReajustesRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/projects': {
@@ -352,6 +371,7 @@ interface AppRouteChildren {
   AppMemoriasRoute: typeof AppMemoriasRoute
   AppMetradosRoute: typeof AppMetradosRoute
   AppProjectsRoute: typeof AppProjectsRoute
+  AppReajustesRoute: typeof AppReajustesRoute
   AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppUsersRoute: typeof AppUsersRoute
@@ -368,6 +388,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMemoriasRoute: AppMemoriasRoute,
   AppMetradosRoute: AppMetradosRoute,
   AppProjectsRoute: AppProjectsRoute,
+  AppReajustesRoute: AppReajustesRoute,
   AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppUsersRoute: AppUsersRoute,
@@ -384,3 +405,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
