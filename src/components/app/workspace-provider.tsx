@@ -138,6 +138,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setAuditLogs(auditResult.data ?? []);
     setProjectMembers(projectMembersResult.data ?? []);
     setUserGlobalRoles(userGlobalRolesResult.data ?? []);
+    setReajustes(reajustesResult.data ?? []);
     setLoading(false);
     setRefreshing(false);
   };
