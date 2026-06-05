@@ -14,7 +14,25 @@ export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 export type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
 export type BudgetImportRow = Database["public"]["Tables"]["budget_imports"]["Row"];
 export type BudgetItemRow = Database["public"]["Tables"]["budget_items"]["Row"];
-export type MetradoEntryRow = Database["public"]["Tables"]["metrado_entries"]["Row"];
+export type MetradoLineRow = Database["public"]["Tables"]["metrado_lines"]["Row"];
+/**
+ * Forma agregada de un metrado para consumo por la UI/legacy code.
+ * Se construye a partir de `metrado_lines` + `valuation_periods`.
+ * (La antigua tabla `metrado_entries` fue eliminada.)
+ */
+export type MetradoEntryRow = {
+  id: string;
+  project_id: string;
+  item_id: string;
+  period_month: string;
+  entry_date: string;
+  quantity: number;
+  status: "validated";
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
 export type MemoriaRow = Database["public"]["Tables"]["memoria_valorizada"]["Row"];
 export type ValuationRow = Database["public"]["Tables"]["valuations"]["Row"];
 export type ValuationLineRow = Database["public"]["Tables"]["valuation_lines"]["Row"];
