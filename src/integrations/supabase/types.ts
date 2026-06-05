@@ -337,6 +337,36 @@ export type Database = {
           },
         ]
       }
+      inei_indices: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          period_month: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          period_month: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          period_month?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
       liquidations: {
         Row: {
           approved_at: string | null
@@ -628,6 +658,39 @@ export type Database = {
           },
         ]
       }
+      polynomial_formulas: {
+        Row: {
+          base_period_month: string
+          created_at: string
+          created_by: string
+          id: string
+          monomios: Json
+          name: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_period_month: string
+          created_at?: string
+          created_by: string
+          id?: string
+          monomios?: Json
+          name: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_period_month?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          monomios?: Json
+          name?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -840,6 +903,56 @@ export type Database = {
           utility_amount?: number | null
         }
         Relationships: []
+      }
+      reajustes: {
+        Row: {
+          base_amount: number
+          created_at: string
+          created_by: string
+          detail: Json
+          formula_id: string
+          id: string
+          k_value: number
+          period_month: string
+          project_id: string
+          reajuste_amount: number
+          updated_at: string
+        }
+        Insert: {
+          base_amount?: number
+          created_at?: string
+          created_by: string
+          detail?: Json
+          formula_id: string
+          id?: string
+          k_value?: number
+          period_month: string
+          project_id: string
+          reajuste_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          base_amount?: number
+          created_at?: string
+          created_by?: string
+          detail?: Json
+          formula_id?: string
+          id?: string
+          k_value?: number
+          period_month?: string
+          project_id?: string
+          reajuste_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reajustes_formula_id_fkey"
+            columns: ["formula_id"]
+            isOneToOne: false
+            referencedRelation: "polynomial_formulas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_global_roles: {
         Row: {
