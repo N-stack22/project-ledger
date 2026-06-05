@@ -81,6 +81,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const auditQuery = supabase.from("audit_logs").select("id,action,created_at,entity_type,actor_user_id").order("created_at", { ascending: false }).limit(20);
     const projectMembersQuery = supabase.from("project_members").select("*");
     const userGlobalRolesQuery = supabase.from("user_global_roles").select("*").eq("user_id", user.id);
+    const reajustesQuery = supabase.from("reajustes").select("*").order("period_month", { ascending: false });
 
     const profileQuery = isAdmin
       ? supabase.from("profiles").select("*").order("created_at", { ascending: false })
