@@ -119,32 +119,27 @@ export function NotificationsBell() {
             <ul className="divide-y divide-border">
               {items.map((n) => {
                 const unreadItem = !n.read_at;
-                const content = (
-                  <div
-                    className={`px-3 py-2 text-sm ${unreadItem ? "bg-accent/40" : ""}`}
-                    onClick={() => {
-                      if (unreadItem) void markOneRead(n.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <p className="font-medium text-foreground">{n.title}</p>
-                    {n.body ? (
-                      <p className="line-clamp-2 text-xs text-muted-foreground">{n.body}</p>
-                    ) : null}
-                    <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {timeAgo(n.created_at)}
-                    </p>
-                  </div>
-                );
                 return (
                   <li key={n.id}>
-                    {n.link ? (
-                      <Link to={n.link} className="block hover:bg-muted/50">
-                        {content}
-                      </Link>
-                    ) : (
-                      <div className="hover:bg-muted/50">{content}</div>
-                    )}
+                    <button
+                      type="button"
+                      className={`block w-full text-left hover:bg-muted/50 ${unreadItem ? "bg-accent/40" : ""}`}
+                      onClick={() => {
+                        if (unreadItem) void markOneRead(n.id);
+                        setOpen(false);
+                        if (n.link) router.navigate({ to: n.link });
+                      }}
+                    >
+                      <div className="px-3 py-2 text-sm">
+                        <p className="font-medium text-foreground">{n.title}</p>
+                        {n.body ? (
+                          <p className="line-clamp-2 text-xs text-muted-foreground">{n.body}</p>
+                        ) : null}
+                        <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {timeAgo(n.created_at)}
+                        </p>
+                      </div>
+                    </button>
                   </li>
                 );
               })}
