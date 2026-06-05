@@ -14,6 +14,7 @@ import { useWorkspace } from "@/components/app/workspace-provider";
 import { PageLayout } from "@/components/app/page-layout";
 import { RichTextEditor } from "@/components/app/rich-text-editor";
 import { AIDraftDialog } from "@/components/app/ai-draft-dialog";
+import { SignDocumentButton } from "@/components/app/sign-document-button";
 import {
   buildAuditSummary,
   buildDashboardMetrics,
@@ -2212,6 +2213,7 @@ export function MemoriasPage() {
                       <Button size="sm" variant="outline" onClick={() => updateStatus(memoria.id, "approved")}>Aprobar</Button>
                       <Button size="sm" variant="outline" onClick={() => updateStatus(memoria.id, "rejected")}>Observar</Button>
                       {project ? <Button size="sm" variant="ghost" onClick={() => exportMemoriaPdf(project, memoria)}>PDF</Button> : null}
+                      <SignDocumentButton projectId={memoria.project_id} documentId={memoria.id} documentType="memoria_valorizada" payload={{ id: memoria.id, title: memoria.title, period_month: memoria.period_month, executive_summary: memoria.executive_summary, content_json: memoria.content_json, version_number: memoria.version_number }} />
                     </div>
                   </div>
                 );
@@ -2352,6 +2354,7 @@ export function ValuationsPage() {
                       <Button size="sm" variant="outline" onClick={() => updateStatus(valuation.id, "approved")}>Aprobar</Button>
                       <Button size="sm" variant="outline" onClick={() => updateStatus(valuation.id, "rejected")}>Rechazar</Button>
                       {project ? <Button size="sm" variant="ghost" onClick={() => exportValuationPdf(project, valuation, lines)}>PDF</Button> : null}
+                      <SignDocumentButton projectId={valuation.project_id} documentId={valuation.id} documentType="valuation" payload={{ id: valuation.id, period_month: valuation.period_month, gross_amount: valuation.gross_amount, deductions_amount: valuation.deductions_amount, net_amount: valuation.net_amount, progress_percent: valuation.progress_percent, contract_type_snapshot: valuation.contract_type_snapshot }} />
                     </div>
                   </div>
                 );
@@ -2428,7 +2431,7 @@ export function LiquidationPage() {
       <PageLayout title="Liquidación" description="Cierre económico final del proyecto una vez completado el historial de valorizaciones.">
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <Card><CardHeader><CardTitle>Generar liquidación</CardTitle></CardHeader><CardContent><Form {...form}><form className="space-y-4" onSubmit={submit}><FormField control={form.control} name="project_id" render={({ field }) => <FormItem><FormLabel>Proyecto</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona proyecto" /></SelectTrigger></FormControl><SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} /><FormField control={form.control} name="total_deductions_amount" render={({ field }) => <FormItem><FormLabel>Deducciones finales</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>} /><FormField control={form.control} name="summary_text" render={({ field }) => <FormItem><FormLabel>Resumen de cierre</FormLabel><FormControl><Textarea {...field} value={field.value ?? ""} /></FormControl></FormItem>} />{form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}<Button type="submit">Generar liquidación</Button></form></Form></CardContent></Card>
-          <Card><CardHeader><CardTitle>Liquidaciones registradas</CardTitle></CardHeader><CardContent>{liquidations.map((liquidation) => { const project = projects.find((item) => item.id === liquidation.project_id); const relatedValuations = valuations.filter((item) => item.project_id === liquidation.project_id && item.status === "approved"); return <div key={liquidation.id} className="mb-4 rounded-lg border border-border p-4"><p className="text-sm font-medium text-foreground">{project?.name || "Proyecto"}</p><p className="mt-2 text-sm text-muted-foreground">Monto final: {formatCurrency(Number(liquidation.final_amount), project?.currency_code || "PEN")}</p><div className="mt-3 flex gap-2">{project ? <Button size="sm" variant="outline" onClick={() => exportLiquidationPdf(project, liquidation, relatedValuations)}>PDF</Button> : null}</div></div>; })}</CardContent></Card>
+          <Card><CardHeader><CardTitle>Liquidaciones registradas</CardTitle></CardHeader><CardContent>{liquidations.map((liquidation) => { const project = projects.find((item) => item.id === liquidation.project_id); const relatedValuations = valuations.filter((item) => item.project_id === liquidation.project_id && item.status === "approved"); return <div key={liquidation.id} className="mb-4 rounded-lg border border-border p-4"><p className="text-sm font-medium text-foreground">{project?.name || "Proyecto"}</p><p className="mt-2 text-sm text-muted-foreground">Monto final: {formatCurrency(Number(liquidation.final_amount), project?.currency_code || "PEN")}</p><div className="mt-3 flex flex-wrap gap-2">{project ? <Button size="sm" variant="outline" onClick={() => exportLiquidationPdf(project, liquidation, relatedValuations)}>PDF</Button> : null}<SignDocumentButton projectId={liquidation.project_id} documentId={liquidation.id} documentType="liquidation" payload={{ id: liquidation.id, final_amount: liquidation.final_amount, total_valued_amount: liquidation.total_valued_amount, total_deductions_amount: liquidation.total_deductions_amount, summary_text: liquidation.summary_text, status: liquidation.status }} /></div></div>; })}</CardContent></Card>
         </div>
       </PageLayout>
     </AuthGuard>
