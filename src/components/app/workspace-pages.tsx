@@ -1264,52 +1264,90 @@ export function BudgetsPage() {
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof detectBudgetWorkbook>> | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [replaceExisting, setReplaceExisting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const projectHasBudget = useMemo(
+    () => budgetItems.some((item) => item.project_id === selectedProjectId),
+    [budgetItems, selectedProjectId],
+  );
 
   const uploadBudget = async () => {
     if (!file || !selectedProjectId || !user || !preview) return;
-    const storagePath = `${selectedProjectId}/${Date.now()}-${file.name}`;
-    const storage = await supabase.storage.from("budget-imports").upload(storagePath, file, { upsert: true });
-    if (storage.error) return setMessage(storage.error.message);
+    setUploading(true);
+    setMessage(null);
+    try {
+      if (replaceExisting && projectHasBudget) {
+        const delItems = await supabase.from("budget_items").delete().eq("project_id", selectedProjectId);
+        if (delItems.error) {
+          setMessage(`No se pudieron eliminar las partidas anteriores: ${delItems.error.message}`);
+          return;
+        }
+        const delImports = await supabase.from("budget_imports").delete().eq("project_id", selectedProjectId);
+        if (delImports.error) {
+          setMessage(`No se pudieron eliminar las importaciones anteriores: ${delImports.error.message}`);
+          return;
+        }
+      }
 
-    const importResult = await supabase
-      .from("budget_imports")
-      .insert({
+      const storagePath = `${selectedProjectId}/${Date.now()}-${file.name}`;
+      const storage = await supabase.storage.from("budget-imports").upload(storagePath, file, { upsert: true });
+      if (storage.error) {
+        setMessage(storage.error.message);
+        return;
+      }
+
+      const importResult = await supabase
+        .from("budget_imports")
+        .insert({
+          project_id: selectedProjectId,
+          uploaded_by: user.id,
+          file_name: file.name,
+          file_path: storagePath,
+          status: "imported",
+          column_mapping: preview.mapping,
+          validation_summary: { warnings: preview.warnings, importedRows: preview.rows.length },
+          imported_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (importResult.error) {
+        setMessage(importResult.error.message);
+        return;
+      }
+
+      const itemsPayload = preview.rows.map((row, index) => ({
         project_id: selectedProjectId,
-        uploaded_by: user.id,
-        file_name: file.name,
-        file_path: storagePath,
-        status: "imported",
-        column_mapping: preview.mapping,
-        validation_summary: { warnings: preview.warnings, importedRows: preview.rows.length },
-        imported_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+        budget_import_id: importResult.data.id,
+        item_code: row.item_code || null,
+        description: row.description,
+        unit: row.unit,
+        base_quantity: row.base_quantity,
+        unit_price: row.unit_price,
+        partial_amount: row.partial_amount,
+        hierarchy_level: row.hierarchy_level ?? null,
+        parent_item_code: row.parent_item_code ?? null,
+        category: row.category || null,
+        sort_order: index + 1,
+      }));
 
-    if (importResult.error) return setMessage(importResult.error.message);
-
-    const itemsPayload = preview.rows.map((row, index) => ({
-      project_id: selectedProjectId,
-      budget_import_id: importResult.data.id,
-      item_code: row.item_code || null,
-      description: row.description,
-      unit: row.unit,
-      base_quantity: row.base_quantity,
-      unit_price: row.unit_price,
-      partial_amount: row.partial_amount,
-      hierarchy_level: row.hierarchy_level ?? null,
-      parent_item_code: row.parent_item_code ?? null,
-      category: row.category || null,
-      sort_order: index + 1,
-    }));
-
-    const insertItems = await supabase.from("budget_items").insert(itemsPayload);
-    if (insertItems.error) return setMessage(insertItems.error.message);
-    setMessage(`Importación completada con ${preview.rows.length} partidas.`);
-    setPreview(null);
-    setFile(null);
-    await refresh();
+      const insertItems = await supabase.from("budget_items").insert(itemsPayload);
+      if (insertItems.error) {
+        setMessage(insertItems.error.message);
+        return;
+      }
+      toast.success(`Importación completada con ${preview.rows.length} partidas.`);
+      setMessage(`Importación completada con ${preview.rows.length} partidas.`);
+      setPreview(null);
+      setFile(null);
+      setReplaceExisting(false);
+      await refresh();
+    } finally {
+      setUploading(false);
+    }
   };
+
 
   const currentItems = budgetItems.filter((item) => item.project_id === selectedProjectId);
 
@@ -1340,10 +1378,22 @@ export function BudgetsPage() {
                   {preview.warnings.length ? <p className="mt-1 text-xs text-muted-foreground">{preview.warnings.join(" ")}</p> : <p className="mt-1 text-xs text-muted-foreground">Revisa la vista previa completa antes de confirmar la importación.</p>}
                 </div>
               ) : null}
+              {projectHasBudget ? (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
+                  <p className="font-medium">Este proyecto ya tiene un presupuesto cargado.</p>
+                  <label className="mt-2 flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)} />
+                    Reemplazar presupuesto existente (elimina partidas e importaciones anteriores)
+                  </label>
+                </div>
+              ) : null}
               {message ? <p className="text-sm text-primary">{message}</p> : null}
-              <Button onClick={() => void uploadBudget()} disabled={!preview || !selectedProjectId}>Importar presupuesto</Button>
+              <Button onClick={() => void uploadBudget()} disabled={!preview || !selectedProjectId || uploading || (projectHasBudget && !replaceExisting)}>
+                {uploading ? "Importando…" : "Importar presupuesto"}
+              </Button>
             </CardContent>
           </Card>
+
           {preview ? (() => {
             const sortedPreviewRows = sortBudgetItemsHierarchically(preview.rows);
             const previewStats = getBudgetHierarchyStats(preview.rows);
