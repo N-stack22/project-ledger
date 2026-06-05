@@ -962,6 +962,7 @@ export type Database = {
           project_id: string
           reajuste_amount: number
           updated_at: string
+          valuation_id: string | null
         }
         Insert: {
           base_amount?: number
@@ -975,6 +976,7 @@ export type Database = {
           project_id: string
           reajuste_amount?: number
           updated_at?: string
+          valuation_id?: string | null
         }
         Update: {
           base_amount?: number
@@ -988,6 +990,7 @@ export type Database = {
           project_id?: string
           reajuste_amount?: number
           updated_at?: string
+          valuation_id?: string | null
         }
         Relationships: [
           {

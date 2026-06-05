@@ -10,6 +10,7 @@ import type {
   ProfileRow,
   ProjectMemberRow,
   ProjectRow,
+  ReajusteRow,
   UserGlobalRoleRow,
   UserRoleRow,
   ValuationLineRow,
@@ -34,6 +35,7 @@ interface WorkspaceContextValue {
   userRoles: UserRoleRow[];
   projectMembers: ProjectMemberRow[];
   userGlobalRoles: UserGlobalRoleRow[];
+  reajustes: ReajusteRow[];
   auditLogs: Array<{ id: string; action: string; created_at: string; entity_type: string; actor_user_id: string | null }>;
   refresh: () => Promise<void>;
 }
@@ -57,6 +59,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [userGlobalRoles, setUserGlobalRoles] = useState<UserGlobalRoleRow[]>([]);
+  const [reajustes, setReajustes] = useState<ReajusteRow[]>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; created_at: string; entity_type: string; actor_user_id: string | null }>>([]);
 
   const refresh = async () => {
@@ -78,6 +81,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const auditQuery = supabase.from("audit_logs").select("id,action,created_at,entity_type,actor_user_id").order("created_at", { ascending: false }).limit(20);
     const projectMembersQuery = supabase.from("project_members").select("*");
     const userGlobalRolesQuery = supabase.from("user_global_roles").select("*").eq("user_id", user.id);
+    const reajustesQuery = supabase.from("reajustes").select("*").order("period_month", { ascending: false });
 
     const profileQuery = isAdmin
       ? supabase.from("profiles").select("*").order("created_at", { ascending: false })
@@ -101,6 +105,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       auditResult,
       projectMembersResult,
       userGlobalRolesResult,
+      reajustesResult,
     ] = await Promise.all([
       projectQuery,
       importsQuery,
@@ -116,6 +121,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       auditQuery,
       projectMembersQuery,
       userGlobalRolesQuery,
+      reajustesQuery,
     ]);
 
     setProjects(projectsResult.data ?? []);
@@ -132,6 +138,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setAuditLogs(auditResult.data ?? []);
     setProjectMembers(projectMembersResult.data ?? []);
     setUserGlobalRoles(userGlobalRolesResult.data ?? []);
+    setReajustes(reajustesResult.data ?? []);
     setLoading(false);
     setRefreshing(false);
   };
@@ -157,6 +164,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       userRoles,
       projectMembers,
       userGlobalRoles,
+      reajustes,
       auditLogs,
       refresh,
     }),
@@ -171,6 +179,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       profiles,
       projects,
       projectMembers,
+      reajustes,
       refreshing,
       userGlobalRoles,
       userRoles,

@@ -25,6 +25,7 @@ export type ProjectMemberRow = Database["public"]["Tables"]["project_members"]["
 export type ProjectRole = Database["public"]["Enums"]["project_role"];
 export type GlobalRole = Database["public"]["Enums"]["global_role"];
 export type UserGlobalRoleRow = Database["public"]["Tables"]["user_global_roles"]["Row"];
+export type ReajusteRow = Database["public"]["Tables"]["reajustes"]["Row"];
 
 export type RichTextDocument = {
   html: string;

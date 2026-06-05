@@ -63,6 +63,7 @@ interface Reajuste {
   base_amount: number;
   k_value: number;
   reajuste_amount: number;
+  valuation_id: string | null;
   detail: any;
   created_at: string;
 }
@@ -72,7 +73,7 @@ function formatMoney(n: number) {
 }
 
 export function ReajustesPage() {
-  const { projects } = useWorkspace();
+  const { projects, valuations } = useWorkspace();
   const { user, isAdmin } = useAuth();
   const [projectId, setProjectId] = useState("");
   const [formulas, setFormulas] = useState<Formula[]>([]);
@@ -140,6 +141,7 @@ export function ReajustesPage() {
                 formulas={formulas}
                 indices={indices}
                 reajustes={reajustes}
+                valuations={valuations.filter((v) => v.project_id === projectId)}
                 userId={user?.id}
                 onChange={loadData}
               />
@@ -172,6 +174,7 @@ function CalcTab({
   formulas,
   indices,
   reajustes,
+  valuations,
   userId,
   onChange,
 }: {
@@ -179,12 +182,14 @@ function CalcTab({
   formulas: Formula[];
   indices: IneiIndex[];
   reajustes: Reajuste[];
+  valuations: Array<{ id: string; period_month: string; gross_amount: number; status: string }>;
   userId: string | undefined;
   onChange: () => Promise<void>;
 }) {
   const [formulaId, setFormulaId] = useState("");
   const [periodMonth, setPeriodMonth] = useState("");
   const [baseAmount, setBaseAmount] = useState("0");
+  const [valuationId, setValuationId] = useState<string>("none");
   const [saving, setSaving] = useState(false);
 
   const formula = formulas.find((f) => f.id === formulaId);
@@ -225,6 +230,7 @@ function CalcTab({
       base_amount: calc.base,
       k_value: calc.k,
       reajuste_amount: calc.reajuste,
+      valuation_id: valuationId !== "none" ? valuationId : null,
       detail: { monomios: calc.detail },
       created_by: userId,
     });
@@ -262,6 +268,32 @@ function CalcTab({
             <div className="space-y-1">
               <Label className="text-xs">Monto base (valorización bruta)</Label>
               <Input type="number" step="0.01" value={baseAmount} onChange={(e) => setBaseAmount(e.target.value)} />
+            </div>
+            <div className="space-y-1 md:col-span-3">
+              <Label className="text-xs">Vincular a valorización (opcional)</Label>
+              <Select
+                value={valuationId}
+                onValueChange={(v) => {
+                  setValuationId(v);
+                  if (v !== "none") {
+                    const val = valuations.find((x) => x.id === v);
+                    if (val) {
+                      setPeriodMonth(val.period_month);
+                      setBaseAmount(String(val.gross_amount ?? 0));
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Sin vincular" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin vincular</SelectItem>
+                  {valuations.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.period_month} · Bruto {formatMoney(Number(v.gross_amount))} · {v.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -318,6 +350,7 @@ function CalcTab({
                 <TableRow>
                   <TableHead>Período</TableHead>
                   <TableHead>Fórmula</TableHead>
+                  <TableHead>Vinculada</TableHead>
                   <TableHead>Base</TableHead>
                   <TableHead>K</TableHead>
                   <TableHead>Reajuste</TableHead>
@@ -328,6 +361,11 @@ function CalcTab({
                   <TableRow key={r.id}>
                     <TableCell>{r.period_month}</TableCell>
                     <TableCell>{formulas.find((f) => f.id === r.formula_id)?.name ?? "—"}</TableCell>
+                    <TableCell>
+                      {r.valuation_id
+                        ? <Badge variant="secondary">Valorización</Badge>
+                        : <Badge variant="outline">—</Badge>}
+                    </TableCell>
                     <TableCell>{formatMoney(Number(r.base_amount))}</TableCell>
                     <TableCell>{Number(r.k_value).toFixed(6)}</TableCell>
                     <TableCell>{formatMoney(Number(r.reajuste_amount))}</TableCell>

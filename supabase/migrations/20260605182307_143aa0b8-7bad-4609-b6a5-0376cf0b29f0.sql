@@ -1,0 +1,1 @@
+ALTER TABLE public.reajustes ADD COLUMN IF NOT EXISTS valuation_id uuid NULL; CREATE INDEX IF NOT EXISTS reajustes_valuation_id_idx ON public.reajustes(valuation_id);
