@@ -545,30 +545,50 @@ function downloadIneiTemplate() {
 }
 
 
+const TEMPLATE_COLUMNS = ["period_month", "code", "description", "value"] as const;
+type CanonicalCol = typeof TEMPLATE_COLUMNS[number];
+const COLUMN_ALIASES: Record<string, CanonicalCol> = {
+  period: "period_month", period_month: "period_month", mes: "period_month", periodo: "period_month", fecha: "period_month",
+  code: "code", codigo: "code", "código": "code", cod: "code", indice: "code", "índice": "code",
+  description: "description", descripcion: "description", "descripción": "description", nombre: "description",
+  value: "value", valor: "value", ip: "value", indice_valor: "value",
+};
+
+interface RowError { field: string; message: string }
 interface ParsedRow {
   period_month: string;
   code: string;
   description: string | null;
   value: number;
   __line: number;
-  __error?: string;
+  __errors: RowError[];
+}
+
+interface ParseResult {
+  rows: ParsedRow[];
+  errors: string[];      // fatales: no se importa nada
+  warnings: string[];    // no fatales
+  unknownColumns: string[];
+  missingColumns: string[];
 }
 
 function normalizePeriod(raw: string): string | null {
   const v = raw.trim();
   if (!v) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-  if (/^\d{4}-\d{2}$/.test(v)) return `${v}-01`;
-  const m1 = v.match(/^(\d{4})[/-](\d{1,2})(?:[/-](\d{1,2}))?$/);
-  if (m1) {
-    const y = m1[1];
-    const mo = m1[2].padStart(2, "0");
-    const d = (m1[3] ?? "01").padStart(2, "0");
-    return `${y}-${mo}-${d}`;
+  let y: number, mo: number, d: number;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) { [y, mo, d] = v.split("-").map(Number); }
+  else if (/^\d{4}-\d{2}$/.test(v)) { const [yy, mm] = v.split("-").map(Number); y = yy; mo = mm; d = 1; }
+  else {
+    const m1 = v.match(/^(\d{4})[/-](\d{1,2})(?:[/-](\d{1,2}))?$/);
+    const m2 = v.match(/^(\d{1,2})[/-](\d{4})$/);
+    if (m1) { y = +m1[1]; mo = +m1[2]; d = m1[3] ? +m1[3] : 1; }
+    else if (m2) { y = +m2[2]; mo = +m2[1]; d = 1; }
+    else return null;
   }
-  const m2 = v.match(/^(\d{1,2})[/-](\d{4})$/);
-  if (m2) return `${m2[2]}-${m2[1].padStart(2, "0")}-01`;
-  return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 1900 || y > 2999) return null;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${y.toString().padStart(4, "0")}-${mo.toString().padStart(2, "0")}-${d.toString().padStart(2, "0")}`;
 }
 
 function parseCsv(text: string): string[][] {
@@ -576,14 +596,15 @@ function parseCsv(text: string): string[][] {
   let row: string[] = [];
   let cur = "";
   let inQuotes = false;
-  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+  const noComments = text.split(/\r?\n/).filter((l) => !l.trim().startsWith("#")).join("\n");
+  const firstLine = noComments.split(/\r?\n/, 1)[0] ?? "";
   const sep = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
 
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
+  for (let i = 0; i < noComments.length; i++) {
+    const c = noComments[i];
     if (inQuotes) {
       if (c === '"') {
-        if (text[i + 1] === '"') { cur += '"'; i++; } else inQuotes = false;
+        if (noComments[i + 1] === '"') { cur += '"'; i++; } else inQuotes = false;
       } else cur += c;
     } else {
       if (c === '"') inQuotes = true;
@@ -597,42 +618,113 @@ function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
 }
 
-function parseIndicesCsv(text: string, fallbackPeriod: string | null): { rows: ParsedRow[]; errors: string[] } {
+function parseIndicesCsv(text: string, fallbackPeriod: string | null): ParseResult {
   const errors: string[] = [];
+  const warnings: string[] = [];
+  const unknownColumns: string[] = [];
+  const missingColumns: string[] = [];
   const matrix = parseCsv(text);
-  if (matrix.length === 0) return { rows: [], errors: ["El archivo está vacío."] };
-
-  const header = matrix[0].map((h) => h.trim().toLowerCase());
-  const idx = {
-    period: header.findIndex((h) => ["period", "period_month", "mes", "periodo", "fecha"].includes(h)),
-    code: header.findIndex((h) => ["code", "codigo", "código", "cod", "indice", "índice"].includes(h)),
-    description: header.findIndex((h) => ["description", "descripcion", "descripción", "nombre"].includes(h)),
-    value: header.findIndex((h) => ["value", "valor", "ip", "indice_valor"].includes(h)),
-  };
-
-  if (idx.code === -1 || idx.value === -1) {
-    errors.push("El CSV debe tener al menos las columnas 'code' y 'value' (también acepta 'codigo' y 'valor').");
-    return { rows: [], errors };
+  if (matrix.length === 0) {
+    return { rows: [], errors: ["El archivo está vacío o solo contiene comentarios."], warnings, unknownColumns, missingColumns };
   }
 
+  const header = matrix[0].map((h) => h.trim().toLowerCase());
+  const headerMap: Partial<Record<CanonicalCol, number>> = {};
+  const seenCanon = new Set<CanonicalCol>();
+  header.forEach((h, idx) => {
+    if (!h) return;
+    const canon = COLUMN_ALIASES[h];
+    if (!canon) { unknownColumns.push(matrix[0][idx]); return; }
+    if (seenCanon.has(canon)) {
+      warnings.push(`Columna "${matrix[0][idx]}" duplicada — se usará la primera ocurrencia de "${canon}".`);
+      return;
+    }
+    seenCanon.add(canon);
+    headerMap[canon] = idx;
+  });
+
+  if (unknownColumns.length > 0) {
+    warnings.push(`Columnas desconocidas ignoradas: ${unknownColumns.join(", ")}.`);
+  }
+
+  if (headerMap.code === undefined) missingColumns.push("code");
+  if (headerMap.value === undefined) missingColumns.push("value");
+  if (missingColumns.length > 0) {
+    errors.push(`Faltan columnas obligatorias: ${missingColumns.join(", ")}. Cabecera esperada: ${TEMPLATE_COLUMNS.join(",")}.`);
+    return { rows: [], errors, warnings, unknownColumns, missingColumns };
+  }
+
+  const expectedCols = header.length;
   const rows: ParsedRow[] = [];
+  const seenKey = new Map<string, number>();
+
   for (let i = 1; i < matrix.length; i++) {
     const r = matrix[i];
     const lineNum = i + 1;
-    const rawPeriod = idx.period >= 0 ? r[idx.period]?.trim() ?? "" : "";
-    const period = rawPeriod ? normalizePeriod(rawPeriod) : fallbackPeriod;
-    const code = r[idx.code]?.trim() ?? "";
-    const valueRaw = (r[idx.value] ?? "").trim().replace(",", ".");
-    const description = idx.description >= 0 ? (r[idx.description]?.trim() || null) : null;
+    const rowErrors: RowError[] = [];
 
-    if (!period) { rows.push({ period_month: "", code, description, value: 0, __line: lineNum, __error: "Mes inválido o ausente" }); continue; }
-    if (!code) { rows.push({ period_month: period, code: "", description, value: 0, __line: lineNum, __error: "Código vacío" }); continue; }
-    const value = Number(valueRaw);
-    if (!Number.isFinite(value)) { rows.push({ period_month: period, code, description, value: 0, __line: lineNum, __error: `Valor no numérico: "${valueRaw}"` }); continue; }
-    rows.push({ period_month: period, code, description, value, __line: lineNum });
+    if (r.length !== expectedCols) {
+      rowErrors.push({ field: "_row", message: `Número de columnas inesperado: ${r.length} (se esperaban ${expectedCols}).` });
+    }
+
+    const rawPeriod = headerMap.period_month !== undefined ? (r[headerMap.period_month] ?? "").trim() : "";
+    let period: string | null = null;
+    if (rawPeriod) {
+      period = normalizePeriod(rawPeriod);
+      if (!period) rowErrors.push({ field: "period_month", message: `Mes inválido: "${rawPeriod}". Usa YYYY-MM o YYYY-MM-DD.` });
+    } else if (fallbackPeriod) {
+      period = fallbackPeriod;
+    } else {
+      rowErrors.push({ field: "period_month", message: "Mes ausente y no hay mes por defecto." });
+    }
+
+    const code = (r[headerMap.code!] ?? "").trim();
+    if (!code) rowErrors.push({ field: "code", message: "Código vacío." });
+    else if (code.length > 32) rowErrors.push({ field: "code", message: `Código demasiado largo (${code.length}>32).` });
+    else if (!/^[A-Za-z0-9._-]+$/.test(code)) rowErrors.push({ field: "code", message: `Caracteres inválidos en código: "${code}".` });
+
+    const description = headerMap.description !== undefined ? ((r[headerMap.description] ?? "").trim() || null) : null;
+    if (description && description.length > 255) {
+      rowErrors.push({ field: "description", message: `Descripción demasiado larga (${description.length}>255).` });
+    }
+
+    const rawValue = (r[headerMap.value!] ?? "").trim();
+    let value = NaN;
+    if (!rawValue) {
+      rowErrors.push({ field: "value", message: "Valor vacío." });
+    } else {
+      const normalized = rawValue.replace(/\s/g, "").replace(",", ".");
+      if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
+        rowErrors.push({ field: "value", message: `Valor no numérico: "${rawValue}".` });
+      } else {
+        value = Number(normalized);
+        if (!Number.isFinite(value)) rowErrors.push({ field: "value", message: `Valor fuera de rango: "${rawValue}".` });
+        else if (value <= 0) rowErrors.push({ field: "value", message: `Valor debe ser mayor que 0 (${value}).` });
+        else if (value > 100000) rowErrors.push({ field: "value", message: `Valor sospechosamente alto (${value}).` });
+      }
+    }
+
+    if (period && code && !rowErrors.some((e) => e.field === "period_month" || e.field === "code")) {
+      const key = `${period}|${code}`;
+      const prev = seenKey.get(key);
+      if (prev !== undefined) {
+        rowErrors.push({ field: "_row", message: `Duplicado intra-archivo de la línea ${prev} (mismo mes y código).` });
+      } else {
+        seenKey.set(key, lineNum);
+      }
+    }
+
+    rows.push({
+      period_month: period ?? "",
+      code,
+      description,
+      value,
+      __line: lineNum,
+      __errors: rowErrors,
+    });
   }
 
-  return { rows, errors };
+  return { rows, errors, warnings, unknownColumns, missingColumns };
 }
 
 function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
