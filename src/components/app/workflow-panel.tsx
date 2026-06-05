@@ -8,12 +8,20 @@ import { useAuth } from "@/lib/auth";
 import {
   canUserPerform,
   getAvailableTransitions,
+  getWorkflowTransitions,
   workflowEntityLabels,
   type WorkflowKind,
   type WorkflowStatus,
   type WorkflowTransition,
 } from "@/lib/workflow";
+import { notifyProjectRoles, type NotificationKind } from "@/lib/notifications";
 import { useWorkspace } from "@/components/app/workspace-provider";
+
+const linkByKind: Record<WorkflowKind, string> = {
+  memoria_valorizada: "/app/memorias",
+  valuation: "/app/valuations",
+  liquidation: "/app/liquidation",
+};
 
 const tableByKind: Record<WorkflowKind, "memoria_valorizada" | "valuations" | "liquidations"> = {
   memoria_valorizada: "memoria_valorizada",
@@ -123,6 +131,36 @@ export function WorkflowPanel({ kind, projectId, entityId, status, onChanged }: 
     });
     if (commentErr) {
       setError(commentErr.message);
+    }
+
+    // Notificar a los siguientes roles que pueden actuar sobre el nuevo estado.
+    try {
+      const nextTransitions = getWorkflowTransitions(kind).filter((t) =>
+        t.fromStatuses.includes(transition.toStatus),
+      );
+      const nextRoles = Array.from(new Set(nextTransitions.flatMap((t) => t.allowedRoles)));
+      const kindLabel = workflowEntityLabels[kind];
+      const notifKind: NotificationKind =
+        transition.action === "approved"
+          ? "workflow_approved"
+          : transition.action === "rejected"
+            ? "workflow_rejected"
+            : "workflow_pending";
+      if (nextRoles.length > 0) {
+        await notifyProjectRoles({
+          projectId: projectId,
+          roles: nextRoles,
+          kind: notifKind,
+          title: `${kindLabel}: ${transition.label}`,
+          body: comment.trim() || `Estado: ${transition.toStatus}`,
+          link: linkByKind[kind],
+          entityType: kind,
+          entityId: entityId,
+          actorUserId: user.id,
+        });
+      }
+    } catch {
+      // No bloquear la transición si la notificación falla.
     }
 
     setComment("");

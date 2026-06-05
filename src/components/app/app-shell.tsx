@@ -39,6 +39,7 @@ import { useAuth } from "@/lib/auth";
 import { roleLabels } from "@/lib/business";
 import { WorkspaceProvider } from "@/components/app/workspace-provider";
 import { ThemeToggle } from "@/components/app/theme-toggle";
+import { NotificationsBell } from "@/components/app/notifications-bell";
 import { Home } from "lucide-react";
 
 const menuGroups = [
@@ -164,6 +165,7 @@ function AppTopbar() {
               Volver a inicio
             </Link>
           </Button>
+          <NotificationsBell />
           <ThemeToggle />
           <Button variant="outline" onClick={() => void signOut()}>
             Cerrar sesión
