@@ -350,6 +350,7 @@ function CalcTab({
                 <TableRow>
                   <TableHead>Período</TableHead>
                   <TableHead>Fórmula</TableHead>
+                  <TableHead>Vinculada</TableHead>
                   <TableHead>Base</TableHead>
                   <TableHead>K</TableHead>
                   <TableHead>Reajuste</TableHead>
@@ -360,6 +361,11 @@ function CalcTab({
                   <TableRow key={r.id}>
                     <TableCell>{r.period_month}</TableCell>
                     <TableCell>{formulas.find((f) => f.id === r.formula_id)?.name ?? "—"}</TableCell>
+                    <TableCell>
+                      {r.valuation_id
+                        ? <Badge variant="secondary">Valorización</Badge>
+                        : <Badge variant="outline">—</Badge>}
+                    </TableCell>
                     <TableCell>{formatMoney(Number(r.base_amount))}</TableCell>
                     <TableCell>{Number(r.k_value).toFixed(6)}</TableCell>
                     <TableCell>{formatMoney(Number(r.reajuste_amount))}</TableCell>
