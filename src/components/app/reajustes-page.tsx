@@ -730,6 +730,7 @@ function parseIndicesCsv(text: string, fallbackPeriod: string | null): ParseResu
 }
 
 function ImportCsvDialog({ onChange }: { onChange: () => Promise<void> }) {
+  const importFn = useServerFn(importIneiIndices);
   const [open, setOpen] = useState(false);
   const [fallbackPeriod, setFallbackPeriod] = useState("");
   const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
