@@ -2344,12 +2344,12 @@ function AccumulatedMetradosTable({
           // Agregar líneas asociadas a esta partida
           const itemLines = allLines.filter((l) => l.item_id === item.id);
           const prevSum = itemLines.reduce((sum, l) => {
-            const p = periodById.get(l.period_id);
+            const p = l.period_id ? periodById.get(l.period_id) : undefined;
             if (!p) return sum;
             return p.period_number < currentPeriodNumber ? sum + Number(l.partial || 0) : sum;
           }, 0);
           const currentSum = itemLines.reduce((sum, l) => {
-            const p = periodById.get(l.period_id);
+            const p = l.period_id ? periodById.get(l.period_id) : undefined;
             if (!p) return sum;
             return p.period_number === currentPeriodNumber ? sum + Number(l.partial || 0) : sum;
           }, 0);
