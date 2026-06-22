@@ -211,16 +211,20 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     h(View, { style: styles.h1Rule } as any),
     ...[
       "1. Ficha técnica de obra",
-      "2. Memoria valorizada e informe técnico",
-      "3. Resumen consolidado de metrados",
-      "4. Resumen económico y deducciones",
+      "2. Generalidades y control administrativo",
+      "3. Incidencias y conclusiones",
+      "4. Planilla de metrados (Contratado · Acum. anterior · Mes · Acum. actual · Saldo · %)",
+      "5. Hoja resumen de metrados",
+      "6. Hoja de valorización (A–Q)",
+      "7. Resumen general de pagos",
+      "8. Resumen económico y deducciones",
     ].map((t, i) => h(Text, { key: i, style: styles.p } as any, t)),
   );
 
   // ---------- Page 3: Ficha técnica ----------
   const Ficha = h(Page, { size: "A4", style: styles.page } as any,
     PageHeader(),
-    h(Text, { style: styles.h1 } as any, "FICHA TÉCNICA DE OBRA"),
+    h(Text, { style: styles.h1 } as any, "1. FICHA TÉCNICA DE OBRA"),
     h(View, { style: styles.h1Rule } as any),
     FichaRow({ label: "Nombre de la obra", value: project.name }),
     FichaRow({ label: "Código", value: project.code }),
@@ -245,29 +249,66 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     FichaRow({ label: "Monto contractual", value: formatMoney(Number(project.contract_amount || 0), currency) }),
   );
 
-  // ---------- Page 4: Memoria ----------
+  // ---------- Page 4: Memoria (Generalidades, control admin, incidencias, conclusiones) ----------
   const Memoria = h(Page, { size: "A4", style: styles.page } as any,
     PageHeader(),
-    h(Text, { style: styles.h1 } as any, "MEMORIA VALORIZADA E INFORME TÉCNICO"),
+    h(Text, { style: styles.h1 } as any, "2. GENERALIDADES Y CONTROL ADMINISTRATIVO"),
     h(View, { style: styles.h1Rule } as any),
-    h(Text, { style: styles.h2 } as any, "1. Generalidades"),
+    h(Text, { style: styles.h2 } as any, "2.1 Generalidades"),
     h(Text, { style: styles.p } as any, clean(period.generalidades)),
-    h(Text, { style: styles.h2 } as any, "2. Ubicación"),
+    h(Text, { style: styles.h2 } as any, "2.2 Ubicación de la obra"),
     h(Text, { style: styles.p } as any, formatLocation(project)),
-    h(Text, { style: styles.h2 } as any, "3. Metas del proyecto"),
+    h(Text, { style: styles.h2 } as any, "2.3 Metas del proyecto"),
     h(Text, { style: styles.p } as any, clean(period.metas)),
-    h(Text, { style: styles.h2 } as any, "4. Resumen de avances"),
-    h(Text, { style: styles.p } as any, `Acumulado anterior: ${formatMoney(t.prev, currency)}`),
-    h(Text, { style: styles.p } as any, `Valorización del período: ${formatMoney(t.current, currency)}`),
-    h(Text, { style: styles.p } as any, `Acumulado a la fecha: ${formatMoney(t.accum, currency)}`),
-    h(Text, { style: styles.p } as any, `Saldo por valorizar: ${formatMoney(t.balance, currency)}`),
-    h(Text, { style: styles.h2 } as any, "5. Ocurrencias"),
+    h(Text, { style: styles.h2 } as any, "2.4 Control administrativo del período"),
+    h(Text, { style: styles.p } as any, `Período: ${period.date_from} al ${period.date_to}`),
+    h(Text, { style: styles.p } as any, `Valorización N° ${String(period.period_number).padStart(2, "0")}`),
+    h(Text, { style: styles.p } as any, `Residente: ${clean(project.resident_name)}  ·  Supervisor: ${clean(project.supervisor_name)}`),
+    h(Text, { style: styles.h1, marginTop: 16 } as any, "3. INCIDENCIAS Y CONCLUSIONES"),
+    h(View, { style: styles.h1Rule } as any),
+    h(Text, { style: styles.h2 } as any, "3.1 Incidencias / Ocurrencias"),
     h(Text, { style: styles.p } as any, clean(period.ocurrencias)),
-    h(Text, { style: styles.h2 } as any, "6. Conclusiones"),
+    h(Text, { style: styles.h2 } as any, "3.2 Conclusiones"),
     h(Text, { style: styles.p } as any, clean(period.conclusiones)),
   );
 
-  // ---------- Page 5: Hoja resumen de metrados (portrait) ----------
+  // ---------- Page 5: Planilla de metrados (landscape) ----------
+  // A4 landscape: 842 x 595 pt; available ≈ 842 - 48 = 794 pt.
+  const planillaCols: Col[] = [
+    { key: "code", label: "Ítem", width: 60 },
+    { key: "desc", label: "Descripción", width: 250 },
+    { key: "und", label: "Und.", width: 40, align: "center" },
+    { key: "base", label: "Contratado", width: 70, align: "right" },
+    { key: "prev", label: "Acum. anterior", width: 80, align: "right" },
+    { key: "mes", label: "Mes actual", width: 70, align: "right" },
+    { key: "acum", label: "Acum. actual", width: 80, align: "right" },
+    { key: "saldo", label: "Saldo", width: 70, align: "right" },
+    { key: "pct", label: "% Ejec.", width: 74, align: "right" },
+  ];
+  const planillaRows = valTable
+    .filter((r) => r.qtyAccum > 0 || r.qtyCurrent > 0 || Number(r.item.base_quantity || 0) > 0)
+    .map((r) => ({
+      code: r.item.item_code ?? "",
+      desc: r.item.description ?? "",
+      und: r.item.unit ?? "",
+      base: formatNum(Number(r.item.base_quantity || 0), 2),
+      prev: formatNum(r.qtyPrev, 2),
+      mes: formatNum(r.qtyCurrent, 2),
+      acum: formatNum(r.qtyAccum, 2),
+      saldo: formatNum(r.qtyBalance, 2),
+      pct: `${formatNum(r.pctAccum, 2)}%`,
+    }));
+
+  const PlanillaPage = h(Page, { size: "A4", orientation: "landscape", style: styles.pageLandscape } as any,
+    PageHeader(),
+    h(Text, { style: styles.h1 } as any, "4. PLANILLA DE METRADOS"),
+    h(View, { style: styles.h1Rule } as any),
+    planillaRows.length === 0
+      ? h(Text, { style: styles.p } as any, "Sin partidas con metrado para mostrar.")
+      : Table({ cols: planillaCols, rows: planillaRows }),
+  );
+
+  // ---------- Page 6: Hoja resumen de metrados (portrait) ----------
   // Available width portrait A4 ≈ 595 - 64 = 531 pt. We'll work in pt.
   const resumenCols: Col[] = [
     { key: "code", label: "Ítem", width: 70 },
@@ -286,14 +327,99 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
 
   const ResumenPage = h(Page, { size: "A4", style: styles.page } as any,
     PageHeader(),
-    h(Text, { style: styles.h1 } as any, "HOJA RESUMEN DE METRADOS"),
+    h(Text, { style: styles.h1 } as any, "5. HOJA RESUMEN DE METRADOS"),
     h(View, { style: styles.h1Rule } as any),
     resumenRows.length === 0
       ? h(Text, { style: styles.p } as any, "Sin metrados registrados para el período.")
       : Table({ cols: resumenCols, rows: resumenRows }),
   );
 
-  // ---------- Page 6: Resumen y deducciones ----------
+  // ---------- Page 7: Hoja de valorización A–Q ----------
+  const bk = args.breakdown ?? null;
+  const aqCols: Col[] = [
+    { key: "letter", label: "", width: 40, align: "center" },
+    { key: "label", label: "Concepto", width: 371 },
+    { key: "amount", label: "Monto", width: 120, align: "right" },
+  ];
+  const aqRows = bk
+    ? BREAKDOWN_ROWS.map((row) => ({
+        letter: row.letter,
+        label: row.label,
+        amount: formatMoney(Number((bk as any)[row.key] ?? 0), currency),
+      }))
+    : [];
+
+  const HojaAQ = h(Page, { size: "A4", style: styles.page } as any,
+    PageHeader(),
+    h(Text, { style: styles.h1 } as any, "6. HOJA DE VALORIZACIÓN (A–Q)"),
+    h(View, { style: styles.h1Rule } as any),
+    h(Text, { style: styles.p } as any,
+      `Valorización N° ${String(period.period_number).padStart(2, "0")}  ·  ` +
+      `Período ${period.date_from} a ${period.date_to}` +
+      (args.reajusteK != null ? `  ·  K = ${Number(args.reajusteK).toFixed(4)}` : ""),
+    ),
+    bk
+      ? Table({ cols: aqCols, rows: aqRows })
+      : h(Text, { style: styles.p } as any,
+          "Hoja A–Q no disponible. Configura % Gastos generales, % Utilidad, retención y adelantos en el proyecto y crea la valorización del mes para que se calcule automáticamente."),
+  );
+
+  // ---------- Page 8: Resumen general de pagos ----------
+  const prev = (args.previousValuations ?? []).slice().sort((a, b) => a.period_number - b.period_number);
+  const contractAmount = Number(project.contract_amount || 0);
+  const sumPrevGross = prev.reduce((s, v) => s + Number(v.gross_amount || 0), 0);
+  const sumPrevNet = prev.reduce((s, v) => s + Number(v.net_amount || 0), 0);
+  const currentGross = bk ? bk.subtotalReajustado : t.current;
+  const currentNet = bk ? bk.netToContractor : netAmount;
+  const accumGross = sumPrevGross + currentGross;
+  const accumNet = sumPrevNet + currentNet;
+  const balanceContract = Math.max(contractAmount - accumGross, 0);
+
+  const pagosCols: Col[] = [
+    { key: "n", label: "Val. N°", width: 60, align: "center" },
+    { key: "mes", label: "Período", width: 100, align: "center" },
+    { key: "bruto", label: "Bruto", width: 180, align: "right" },
+    { key: "neto", label: "Neto pagado", width: 191, align: "right" },
+  ];
+  const pagosRows = [
+    ...prev.map((v) => ({
+      n: String(v.period_number).padStart(2, "0"),
+      mes: v.period_month?.slice(0, 7) ?? "—",
+      bruto: formatMoney(Number(v.gross_amount || 0), currency),
+      neto: formatMoney(Number(v.net_amount || 0), currency),
+    })),
+    {
+      n: String(period.period_number).padStart(2, "0"),
+      mes: period.date_from.slice(0, 7),
+      bruto: formatMoney(currentGross, currency),
+      neto: formatMoney(currentNet, currency),
+    },
+  ];
+
+  const ResumenPagos = h(Page, { size: "A4", style: styles.page } as any,
+    PageHeader(),
+    h(Text, { style: styles.h1 } as any, "7. RESUMEN GENERAL DE PAGOS"),
+    h(View, { style: styles.h1Rule } as any),
+    FichaRow({ label: "Monto contractual", value: formatMoney(contractAmount, currency) }),
+    FichaRow({ label: "Acumulado anterior (bruto)", value: formatMoney(sumPrevGross, currency) }),
+    FichaRow({ label: "Valorización presente (bruto)", value: formatMoney(currentGross, currency) }),
+    FichaRow({ label: "Acumulado actual (bruto)", value: formatMoney(accumGross, currency) }),
+    FichaRow({ label: "Saldo por valorizar", value: formatMoney(balanceContract, currency) }),
+    FichaRow({ label: "% Avance contractual acumulado", value: contractAmount > 0 ? `${formatNum((accumGross / contractAmount) * 100, 2)}%` : "—" }),
+    h(Text, { style: styles.h2 } as any, "Detalle por valorización"),
+    Table({
+      cols: pagosCols,
+      rows: pagosRows,
+      totalRow: {
+        n: "",
+        mes: "TOTAL",
+        bruto: formatMoney(accumGross, currency),
+        neto: formatMoney(accumNet, currency),
+      },
+    }),
+  );
+
+  // ---------- Page 9: Resumen y deducciones ----------
   const dedCols: Col[] = [
     { key: "concepto", label: "Concepto", width: 380 },
     { key: "monto", label: "Monto", width: 151, align: "right" },
@@ -307,7 +433,7 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
 
   const ResumenFinalPage = h(Page, { size: "A4", style: styles.page } as any,
     PageHeader(),
-    h(Text, { style: styles.h1 } as any, "RESUMEN DE VALORIZACIÓN Y DEDUCCIONES"),
+    h(Text, { style: styles.h1 } as any, "8. RESUMEN ECONÓMICO Y DEDUCCIONES"),
     h(View, { style: styles.h1Rule } as any),
     FichaRow({ label: "Monto contractual", value: formatMoney(Number(project.contract_amount || 0), currency) }),
     FichaRow({ label: "Acumulado anterior", value: formatMoney(t.prev, currency) }),
@@ -323,7 +449,8 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     h(View, { style: { marginTop: 8, borderTopWidth: 1, borderTopColor: COLORS.accent, paddingTop: 6 } } as any,
       h(View, { style: { flexDirection: "row", justifyContent: "space-between" } } as any,
         h(Text, { style: { fontFamily: "Helvetica-Bold", fontSize: 11 } } as any, "MONTO NETO A PAGAR"),
-        h(Text, { style: { fontFamily: "Helvetica-Bold", fontSize: 11 } } as any, formatMoney(netAmount, currency)),
+        h(Text, { style: { fontFamily: "Helvetica-Bold", fontSize: 11 } } as any,
+          formatMoney(bk ? bk.netToPay : netAmount, currency)),
       ),
     ),
     h(View, { style: styles.sigBox } as any,
@@ -332,7 +459,7 @@ export async function generateExpedienteClientPdf(args: GenerateArgs) {
     ),
   );
 
-  const doc = h(Document, null, Cover, Index, Ficha, Memoria, ResumenPage, ResumenFinalPage);
+  const doc = h(Document, null, Cover, Index, Ficha, Memoria, PlanillaPage, ResumenPage, HojaAQ, ResumenPagos, ResumenFinalPage);
   const blob = await pdf(doc as any).toBlob();
   const safeCode = clean(project.code).replace(/[^a-zA-Z0-9_-]+/g, "-");
   const fileName = `memoria-informe-${safeCode}-val${String(period.period_number).padStart(2, "0")}.pdf`;
