@@ -9,6 +9,7 @@ import {
   type MetradoLine,
   type ValuationItemSummary,
 } from "@/lib/expediente";
+import { BREAKDOWN_ROWS, type ValuationBreakdown } from "@/lib/valuation-breakdown";
 
 type PeriodLike = {
   id: string;
@@ -23,6 +24,13 @@ type PeriodLike = {
 
 type TotalsLike = { base: number; prev: number; current: number; accum: number; balance: number };
 
+export type PrevValuationLike = {
+  period_number: number;
+  period_month: string;
+  gross_amount: number;
+  net_amount: number;
+};
+
 type GenerateArgs = {
   project: ProjectRow;
   period: PeriodLike;
@@ -34,6 +42,12 @@ type GenerateArgs = {
   totalDeductions: number;
   netAmount: number;
   currency: string;
+  /** Hoja de Valorización A–Q ya calculada (opcional). */
+  breakdown?: ValuationBreakdown | null;
+  /** Factor polinómico K aplicado al período (opcional). */
+  reajusteK?: number | null;
+  /** Valorizaciones anteriores del proyecto (para resumen general de pagos). */
+  previousValuations?: PrevValuationLike[];
 };
 
 function clean(value: unknown) {
