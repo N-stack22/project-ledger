@@ -759,6 +759,8 @@ export type Database = {
           deductives_amount: number | null
           department: string | null
           description: string | null
+          direct_advance_amortization_pct: number | null
+          direct_advance_amount: number | null
           direct_cost: number | null
           district: string | null
           entity_name: string | null
@@ -768,16 +770,24 @@ export type Database = {
           execution_term_days: number | null
           expediente_amount: number | null
           extensions_days: number | null
+          guarantee_retention_mode: string | null
+          guarantee_retention_pct: number | null
           id: string
           igv_amount: number | null
           location: string | null
+          materials_advance_amortization_pct: number | null
+          materials_advance_amount: number | null
           name: string
           new_completion_date: string | null
           overhead_cost: number | null
+          overhead_percentage: number | null
           planned_completion_date: string | null
           planned_end_date: string | null
+          profit_percentage: number | null
           progress_percent: number
           province: string | null
+          reference_value_amount: number | null
+          reference_value_date: string | null
           resident_name: string | null
           site_handover_date: string | null
           start_date: string | null
@@ -803,6 +813,8 @@ export type Database = {
           deductives_amount?: number | null
           department?: string | null
           description?: string | null
+          direct_advance_amortization_pct?: number | null
+          direct_advance_amount?: number | null
           direct_cost?: number | null
           district?: string | null
           entity_name?: string | null
@@ -812,16 +824,24 @@ export type Database = {
           execution_term_days?: number | null
           expediente_amount?: number | null
           extensions_days?: number | null
+          guarantee_retention_mode?: string | null
+          guarantee_retention_pct?: number | null
           id?: string
           igv_amount?: number | null
           location?: string | null
+          materials_advance_amortization_pct?: number | null
+          materials_advance_amount?: number | null
           name: string
           new_completion_date?: string | null
           overhead_cost?: number | null
+          overhead_percentage?: number | null
           planned_completion_date?: string | null
           planned_end_date?: string | null
+          profit_percentage?: number | null
           progress_percent?: number
           province?: string | null
+          reference_value_amount?: number | null
+          reference_value_date?: string | null
           resident_name?: string | null
           site_handover_date?: string | null
           start_date?: string | null
@@ -847,6 +867,8 @@ export type Database = {
           deductives_amount?: number | null
           department?: string | null
           description?: string | null
+          direct_advance_amortization_pct?: number | null
+          direct_advance_amount?: number | null
           direct_cost?: number | null
           district?: string | null
           entity_name?: string | null
@@ -856,16 +878,24 @@ export type Database = {
           execution_term_days?: number | null
           expediente_amount?: number | null
           extensions_days?: number | null
+          guarantee_retention_mode?: string | null
+          guarantee_retention_pct?: number | null
           id?: string
           igv_amount?: number | null
           location?: string | null
+          materials_advance_amortization_pct?: number | null
+          materials_advance_amount?: number | null
           name?: string
           new_completion_date?: string | null
           overhead_cost?: number | null
+          overhead_percentage?: number | null
           planned_completion_date?: string | null
           planned_end_date?: string | null
+          profit_percentage?: number | null
           progress_percent?: number
           province?: string | null
+          reference_value_amount?: number | null
+          reference_value_date?: string | null
           resident_name?: string | null
           site_handover_date?: string | null
           start_date?: string | null
@@ -1160,69 +1190,135 @@ export type Database = {
       }
       valuations: {
         Row: {
+          amort_direct_advance: number | null
+          amort_materials_advance: number | null
           contract_type_snapshot: Database["public"]["Enums"]["contract_type"]
           created_at: string
           created_by: string
+          current_accumulated_amount: number | null
+          ded_drnc_direct: number | null
+          ded_drnc_materials: number | null
           deductions_amount: number
+          direct_cost_amount: number | null
           generated_document_path: string | null
           gross_amount: number
           id: string
+          igv_total_amount: number | null
           memoria_id: string
           net_amount: number
+          net_to_contractor: number | null
+          net_to_pay: number | null
+          other_deductions_amount: number | null
+          overhead_amount: number | null
           period_month: string
+          prev_accumulated_amount: number | null
+          profit_amount: number | null
           progress_percent: number
           project_id: string
+          reajuste_drnc_amount: number | null
+          reajuste_gross_amount: number | null
+          reajuste_k_factor: number | null
+          reajuste_prev_reintegro: number | null
           resident_reviewed_at: string | null
           resident_reviewed_by: string | null
+          retention_amount: number | null
           status: Database["public"]["Enums"]["valuation_status"]
+          subtotal_amount: number | null
+          subtotal_reajustado: number | null
           supervisor_comment: string | null
           supervisor_reviewed_at: string | null
           supervisor_reviewed_by: string | null
+          total_deductions_amount: number | null
           total_quantity: number
+          total_to_invoice: number | null
           updated_at: string
         }
         Insert: {
+          amort_direct_advance?: number | null
+          amort_materials_advance?: number | null
           contract_type_snapshot: Database["public"]["Enums"]["contract_type"]
           created_at?: string
           created_by: string
+          current_accumulated_amount?: number | null
+          ded_drnc_direct?: number | null
+          ded_drnc_materials?: number | null
           deductions_amount?: number
+          direct_cost_amount?: number | null
           generated_document_path?: string | null
           gross_amount?: number
           id?: string
+          igv_total_amount?: number | null
           memoria_id: string
           net_amount?: number
+          net_to_contractor?: number | null
+          net_to_pay?: number | null
+          other_deductions_amount?: number | null
+          overhead_amount?: number | null
           period_month: string
+          prev_accumulated_amount?: number | null
+          profit_amount?: number | null
           progress_percent?: number
           project_id: string
+          reajuste_drnc_amount?: number | null
+          reajuste_gross_amount?: number | null
+          reajuste_k_factor?: number | null
+          reajuste_prev_reintegro?: number | null
           resident_reviewed_at?: string | null
           resident_reviewed_by?: string | null
+          retention_amount?: number | null
           status?: Database["public"]["Enums"]["valuation_status"]
+          subtotal_amount?: number | null
+          subtotal_reajustado?: number | null
           supervisor_comment?: string | null
           supervisor_reviewed_at?: string | null
           supervisor_reviewed_by?: string | null
+          total_deductions_amount?: number | null
           total_quantity?: number
+          total_to_invoice?: number | null
           updated_at?: string
         }
         Update: {
+          amort_direct_advance?: number | null
+          amort_materials_advance?: number | null
           contract_type_snapshot?: Database["public"]["Enums"]["contract_type"]
           created_at?: string
           created_by?: string
+          current_accumulated_amount?: number | null
+          ded_drnc_direct?: number | null
+          ded_drnc_materials?: number | null
           deductions_amount?: number
+          direct_cost_amount?: number | null
           generated_document_path?: string | null
           gross_amount?: number
           id?: string
+          igv_total_amount?: number | null
           memoria_id?: string
           net_amount?: number
+          net_to_contractor?: number | null
+          net_to_pay?: number | null
+          other_deductions_amount?: number | null
+          overhead_amount?: number | null
           period_month?: string
+          prev_accumulated_amount?: number | null
+          profit_amount?: number | null
           progress_percent?: number
           project_id?: string
+          reajuste_drnc_amount?: number | null
+          reajuste_gross_amount?: number | null
+          reajuste_k_factor?: number | null
+          reajuste_prev_reintegro?: number | null
           resident_reviewed_at?: string | null
           resident_reviewed_by?: string | null
+          retention_amount?: number | null
           status?: Database["public"]["Enums"]["valuation_status"]
+          subtotal_amount?: number | null
+          subtotal_reajustado?: number | null
           supervisor_comment?: string | null
           supervisor_reviewed_at?: string | null
           supervisor_reviewed_by?: string | null
+          total_deductions_amount?: number | null
           total_quantity?: number
+          total_to_invoice?: number | null
           updated_at?: string
         }
         Relationships: [
