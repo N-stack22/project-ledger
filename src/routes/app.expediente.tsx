@@ -274,6 +274,52 @@ function ExpedientePage() {
     const tid = toast.loading("Generando memoria e informe técnico PDF...");
 
     try {
+      // Cargar fila de `valuations` del período actual (si existe) para reusar la Hoja A–Q persistida,
+      // y todas las valorizaciones previas del proyecto para el resumen general de pagos.
+      const periodMonth = `${period.date_from.slice(0, 7)}-01`;
+      const { data: allVals } = await supabase
+        .from("valuations")
+        .select("period_month, gross_amount, net_amount, direct_cost_amount, overhead_amount, profit_amount, subtotal_amount, reajuste_gross_amount, reajuste_prev_reintegro, reajuste_drnc_amount, subtotal_reajustado, amort_direct_advance, amort_materials_advance, ded_drnc_direct, ded_drnc_materials, other_deductions_amount, total_deductions_amount, net_to_contractor, igv_total_amount, total_to_invoice, retention_amount, net_to_pay, reajuste_k_factor")
+        .eq("project_id", projectId);
+
+      const valRow = (allVals ?? []).find((v: any) => v.period_month === periodMonth) as any;
+      const breakdown = valRow && valRow.subtotal_amount != null ? {
+        directCost: Number(valRow.direct_cost_amount || 0),
+        overhead: Number(valRow.overhead_amount || 0),
+        profit: Number(valRow.profit_amount || 0),
+        subtotal: Number(valRow.subtotal_amount || 0),
+        contractualValuation: Number(valRow.subtotal_amount || 0),
+        reajusteGross: Number(valRow.reajuste_gross_amount || 0),
+        reajustePrevReintegro: Number(valRow.reajuste_prev_reintegro || 0),
+        reajusteDrnc: Number(valRow.reajuste_drnc_amount || 0),
+        subtotalReajustado: Number(valRow.subtotal_reajustado || 0),
+        amortDirectAdvance: Number(valRow.amort_direct_advance || 0),
+        amortMaterialsAdvance: Number(valRow.amort_materials_advance || 0),
+        dedDrncDirect: Number(valRow.ded_drnc_direct || 0),
+        dedDrncMaterials: Number(valRow.ded_drnc_materials || 0),
+        otherDeductions: Number(valRow.other_deductions_amount || 0),
+        totalDeductions: Number(valRow.total_deductions_amount || 0),
+        netToContractor: Number(valRow.net_to_contractor || 0),
+        igvAmount: Number(valRow.igv_total_amount || 0),
+        totalToInvoice: Number(valRow.total_to_invoice || 0),
+        retentionAmount: Number(valRow.retention_amount || 0),
+        netToPay: Number(valRow.net_to_pay || 0),
+      } : null;
+
+      // Mapear valorizaciones previas a {period_number, period_month, gross, net}
+      const monthToPeriodNumber = new Map(
+        periods.map((p) => [`${p.date_from.slice(0, 7)}-01`, p.period_number] as const),
+      );
+      const previousValuations = (allVals ?? [])
+        .filter((v: any) => v.period_month !== periodMonth)
+        .map((v: any) => ({
+          period_number: monthToPeriodNumber.get(v.period_month) ?? 0,
+          period_month: v.period_month,
+          gross_amount: Number(v.gross_amount || 0),
+          net_amount: Number(v.net_amount || 0),
+        }))
+        .filter((v) => v.period_number > 0 && v.period_number < period.period_number);
+
       const res = await generateExpedienteClientPdf({
         project,
         period,
@@ -285,6 +331,9 @@ function ExpedientePage() {
         totalDeductions,
         netAmount,
         currency,
+        breakdown,
+        reajusteK: valRow?.reajuste_k_factor != null ? Number(valRow.reajuste_k_factor) : null,
+        previousValuations,
       });
 
       // Persistir en bucket `expedientes` y registrar en `expediente_documents`.
