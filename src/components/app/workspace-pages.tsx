@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { purgeProject } from "@/lib/projects.purge.functions";
+import { lookupReajusteK } from "@/lib/reajuste-lookup.functions";
+import { BREAKDOWN_ROWS, computeValuationBreakdown, type ValuationBreakdown } from "@/lib/valuation-breakdown";
 import { ThemeToggle as LoginThemeToggle } from "@/components/app/theme-toggle";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -82,6 +84,17 @@ const fichaTecnicaSchema = z
     execution_term_days: z.coerce.number().int().min(0).optional(),
     planned_end_date: z.string().optional(),
     status: z.enum(["draft", "active", "closing", "closed", "archived", "cancelled"]),
+    // Parámetros económicos requeridos por la Hoja de Valorización A–Q
+    overhead_percentage: z.coerce.number().min(0).max(1).optional(),
+    profit_percentage: z.coerce.number().min(0).max(1).optional(),
+    reference_value_amount: z.coerce.number().min(0).optional(),
+    reference_value_date: z.string().optional(),
+    direct_advance_amount: z.coerce.number().min(0).optional(),
+    materials_advance_amount: z.coerce.number().min(0).optional(),
+    direct_advance_amortization_pct: z.coerce.number().min(0).max(1).optional(),
+    materials_advance_amortization_pct: z.coerce.number().min(0).max(1).optional(),
+    guarantee_retention_pct: z.coerce.number().min(0).max(1).optional(),
+    guarantee_retention_mode: z.enum(["per_valuation", "single"]).optional(),
   })
   .superRefine((values, ctx) => {
     const { start_date, planned_end_date, execution_term_days } = values;
@@ -127,8 +140,14 @@ const memoriaSchema = z.object({
 const valuationSchema = z.object({
   project_id: z.string().uuid(),
   period_month: z.string().min(1),
-  deductions_amount: z.coerce.number().min(0),
   progress_percent: z.coerce.number().min(0).max(100).optional(),
+  amort_direct_advance: z.coerce.number().min(0).optional(),
+  amort_materials_advance: z.coerce.number().min(0).optional(),
+  ded_drnc_direct: z.coerce.number().min(0).optional(),
+  ded_drnc_materials: z.coerce.number().min(0).optional(),
+  other_deductions: z.coerce.number().min(0).optional(),
+  reajuste_prev_reintegro: z.coerce.number().optional(),
+  reajuste_drnc: z.coerce.number().min(0).optional(),
 });
 
 const liquidationSchema = z.object({
@@ -854,6 +873,16 @@ export function EditProjectDialog({
       execution_term_days: project.execution_term_days ?? 0,
       planned_end_date: project.planned_end_date ?? "",
       status: project.status,
+      overhead_percentage: Number((project as any).overhead_percentage ?? 0),
+      profit_percentage: Number((project as any).profit_percentage ?? 0),
+      reference_value_amount: Number((project as any).reference_value_amount ?? 0),
+      reference_value_date: (project as any).reference_value_date ?? "",
+      direct_advance_amount: Number((project as any).direct_advance_amount ?? 0),
+      materials_advance_amount: Number((project as any).materials_advance_amount ?? 0),
+      direct_advance_amortization_pct: Number((project as any).direct_advance_amortization_pct ?? 0),
+      materials_advance_amortization_pct: Number((project as any).materials_advance_amortization_pct ?? 0),
+      guarantee_retention_pct: Number((project as any).guarantee_retention_pct ?? 0.1),
+      guarantee_retention_mode: ((project as any).guarantee_retention_mode ?? "per_valuation") as "per_valuation" | "single",
     },
   });
 
@@ -904,8 +933,18 @@ export function EditProjectDialog({
       execution_term_days: values.execution_term_days || null,
       planned_end_date: values.planned_end_date || null,
       status: values.status,
+      overhead_percentage: values.overhead_percentage ?? 0,
+      profit_percentage: values.profit_percentage ?? 0,
+      reference_value_amount: values.reference_value_amount ?? null,
+      reference_value_date: values.reference_value_date || null,
+      direct_advance_amount: values.direct_advance_amount ?? 0,
+      materials_advance_amount: values.materials_advance_amount ?? 0,
+      direct_advance_amortization_pct: values.direct_advance_amortization_pct ?? 0,
+      materials_advance_amortization_pct: values.materials_advance_amortization_pct ?? 0,
+      guarantee_retention_pct: values.guarantee_retention_pct ?? 0,
+      guarantee_retention_mode: values.guarantee_retention_mode ?? "per_valuation",
     };
-    const { error } = await supabase.from("projects").update(payload).eq("id", project.id);
+    const { error } = await (supabase.from("projects").update(payload as never) as any).eq("id", project.id);
     if (error) {
       form.setError("root", { message: error.message });
       return;
@@ -991,6 +1030,52 @@ export function EditProjectDialog({
                 </FormItem>
               )} />
             </div>
+
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="mb-3 text-sm font-medium text-foreground">Parámetros económicos (Hoja de Valorización)</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="overhead_percentage" render={({ field }) => (
+                  <FormItem><FormLabel>Gastos generales (decimal)</FormLabel><FormControl><Input type="number" step="0.0001" min={0} max={1} {...field} value={field.value ?? 0} /></FormControl><FormDescription>Ej.: 0.08 = 8% sobre costo directo</FormDescription><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="profit_percentage" render={({ field }) => (
+                  <FormItem><FormLabel>Utilidad (decimal)</FormLabel><FormControl><Input type="number" step="0.0001" min={0} max={1} {...field} value={field.value ?? 0} /></FormControl><FormDescription>Ej.: 0.07 = 7%</FormDescription><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="reference_value_amount" render={({ field }) => (
+                  <FormItem><FormLabel>Valor referencial</FormLabel><FormControl><Input type="number" step="0.01" min={0} {...field} value={field.value ?? 0} /></FormControl><FormDescription>Factor de relación = Monto contractual / Valor referencial</FormDescription><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="reference_value_date" render={({ field }) => (
+                  <FormItem><FormLabel>Fecha del valor referencial</FormLabel><FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl><FormDescription>Base para fórmula polinómica (Ioi)</FormDescription><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="direct_advance_amount" render={({ field }) => (
+                  <FormItem><FormLabel>Adelanto directo</FormLabel><FormControl><Input type="number" step="0.01" min={0} {...field} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="direct_advance_amortization_pct" render={({ field }) => (
+                  <FormItem><FormLabel>% amortización adelanto directo / valorización</FormLabel><FormControl><Input type="number" step="0.0001" min={0} max={1} {...field} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="materials_advance_amount" render={({ field }) => (
+                  <FormItem><FormLabel>Adelanto de materiales</FormLabel><FormControl><Input type="number" step="0.01" min={0} {...field} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="materials_advance_amortization_pct" render={({ field }) => (
+                  <FormItem><FormLabel>% amortización adelanto materiales / valorización</FormLabel><FormControl><Input type="number" step="0.0001" min={0} max={1} {...field} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="guarantee_retention_pct" render={({ field }) => (
+                  <FormItem><FormLabel>Retención garantía fiel cumplimiento</FormLabel><FormControl><Input type="number" step="0.0001" min={0} max={1} {...field} value={field.value ?? 0.1} /></FormControl><FormDescription>Típicamente 0.10 = 10%</FormDescription><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="guarantee_retention_mode" render={({ field }) => (
+                  <FormItem><FormLabel>Modo de retención</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? "per_valuation"}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="per_valuation">Aplicar en cada valorización</SelectItem>
+                        <SelectItem value="single">Única (10% del contrato total)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
             {form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -1582,6 +1667,8 @@ export function MetradosPage() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [allProjectLines, setAllProjectLines] = useState<MetradoLineRow[]>([]);
+  const [showAccumulated, setShowAccumulated] = useState(false);
 
   const projectItems = useMemo(
     () => budgetItems.filter((b) => b.project_id === projectId),
@@ -1662,6 +1749,20 @@ export function MetradosPage() {
         setLoading(false);
       });
   }, [periodId]);
+
+  // Cargar TODAS las líneas del proyecto (para la Planilla Acumulada).
+  useEffect(() => {
+    if (!projectId) {
+      setAllProjectLines([]);
+      return;
+    }
+    void supabase
+      .from("metrado_lines")
+      .select("*")
+      .eq("project_id", projectId)
+      .then(({ data }) => setAllProjectLines((data ?? []) as MetradoLineRow[]));
+  }, [projectId, lines.length]);
+
 
   async function addLine(itemId: string) {
     if (!periodId || !user) return;
@@ -1889,6 +1990,32 @@ export function MetradosPage() {
             </div>
           </CardContent>
         </Card>
+
+        {projectId && periodId ? (
+          <Card className="mb-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Planilla Acumulada de Metrados</CardTitle>
+                <p className="text-xs text-muted-foreground">Contratado · Acum. anterior · Mes actual · Acum. actual · Saldo · % ejecutado</p>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setShowAccumulated((s) => !s)}>
+                {showAccumulated ? "Ocultar" : "Mostrar planilla"}
+              </Button>
+            </CardHeader>
+            {showAccumulated ? (
+              <CardContent className="overflow-x-auto">
+                <AccumulatedMetradosTable
+                  items={projectItems}
+                  parentSet={parentSet}
+                  itemsByCode={itemsByCode}
+                  allLines={allProjectLines}
+                  periods={periods}
+                  currentPeriod={period}
+                />
+              </CardContent>
+            ) : null}
+          </Card>
+        ) : null}
 
         {projectId && periodId ? (
           <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
@@ -2165,6 +2292,90 @@ export function MetradosPage() {
   );
 }
 
+function AccumulatedMetradosTable({
+  items,
+  parentSet,
+  itemsByCode: _itemsByCode,
+  allLines,
+  periods,
+  currentPeriod,
+}: {
+  items: BudgetItemRow[];
+  parentSet: Set<string>;
+  itemsByCode: Map<string, BudgetItemRow>;
+  allLines: MetradoLineRow[];
+  periods: MetradoPeriod[];
+  currentPeriod: MetradoPeriod | undefined;
+}) {
+  const sortedItems = useMemo(
+    () => items.slice().sort((a, b) => compareItemCodes(a.item_code ?? "", b.item_code ?? "")),
+    [items],
+  );
+
+  const currentPeriodNumber = currentPeriod?.period_number ?? Number.MAX_SAFE_INTEGER;
+  const periodById = useMemo(() => new Map(periods.map((p) => [p.id, p])), [periods]);
+
+  if (!sortedItems.length) {
+    return <p className="text-sm text-muted-foreground">No hay partidas en este proyecto.</p>;
+  }
+
+  return (
+    <table className="w-full min-w-[800px] text-xs">
+      <thead className="bg-muted/40 text-left">
+        <tr>
+          <th className="px-2 py-2">Item</th>
+          <th className="px-2 py-2">Descripción</th>
+          <th className="px-2 py-2 text-center">Unid.</th>
+          <th className="px-2 py-2 text-right">Contratado</th>
+          <th className="px-2 py-2 text-right">Acum. anterior</th>
+          <th className="px-2 py-2 text-right">Mes actual</th>
+          <th className="px-2 py-2 text-right">Acum. actual</th>
+          <th className="px-2 py-2 text-right">Saldo</th>
+          <th className="px-2 py-2 text-right">% ejec.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sortedItems.map((item) => {
+          const code = item.item_code ?? "";
+          const isLeaf = isLeafByCode(code, parentSet);
+          const level = code ? code.split(".").length - 1 : 0;
+          const contracted = Number(item.base_quantity || 0);
+
+          // Agregar líneas asociadas a esta partida
+          const itemLines = allLines.filter((l) => l.item_id === item.id);
+          const prevSum = itemLines.reduce((sum, l) => {
+            const p = l.period_id ? periodById.get(l.period_id) : undefined;
+            if (!p) return sum;
+            return p.period_number < currentPeriodNumber ? sum + Number(l.partial || 0) : sum;
+          }, 0);
+          const currentSum = itemLines.reduce((sum, l) => {
+            const p = l.period_id ? periodById.get(l.period_id) : undefined;
+            if (!p) return sum;
+            return p.period_number === currentPeriodNumber ? sum + Number(l.partial || 0) : sum;
+          }, 0);
+          const accCurrent = prevSum + currentSum;
+          const remaining = Math.max(0, contracted - accCurrent);
+          const pct = contracted > 0 ? (accCurrent / contracted) * 100 : 0;
+
+          return (
+            <tr key={item.id} className={`border-b border-border/60 ${isLeaf ? "" : "bg-muted/20 font-medium"}`}>
+              <td className="px-2 py-1 font-mono text-[11px] text-muted-foreground" style={{ paddingLeft: 8 + level * 12 }}>{code}</td>
+              <td className="px-2 py-1">{item.description}</td>
+              <td className="px-2 py-1 text-center">{item.unit ?? "—"}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{isLeaf ? formatNumber(contracted) : "—"}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{isLeaf ? formatNumber(prevSum) : ""}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{isLeaf ? formatNumber(currentSum) : ""}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{isLeaf ? formatNumber(accCurrent) : ""}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{isLeaf ? formatNumber(remaining) : ""}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{isLeaf ? `${pct.toFixed(1)}%` : ""}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 export function MemoriasPage() {
   const { projects, memorias, refresh } = useWorkspace();
   const { user } = useAuth();
@@ -2275,15 +2486,28 @@ export function MemoriasPage() {
 export function ValuationsPage() {
   const { projects, budgetItems, metrados, memorias, valuations, valuationLines, profiles, reajustes, refresh } = useWorkspace();
   const { user } = useAuth();
-  const form = useForm<z.infer<typeof valuationSchema>>({ resolver: zodResolver(valuationSchema), defaultValues: { deductions_amount: 0, progress_percent: 0 } });
+  const lookupK = useServerFn(lookupReajusteK);
+  const form = useForm<z.infer<typeof valuationSchema>>({
+    resolver: zodResolver(valuationSchema),
+    defaultValues: {
+      progress_percent: 0,
+      amort_direct_advance: 0,
+      amort_materials_advance: 0,
+      ded_drnc_direct: 0,
+      ded_drnc_materials: 0,
+      other_deductions: 0,
+      reajuste_prev_reintegro: 0,
+      reajuste_drnc: 0,
+    },
+  });
 
   const createValuation = form.handleSubmit(async (values) => {
     if (!user) return;
     const periodMonth = toPeriodDate(values.period_month);
-    const project = projects.find((item) => item.id === values.project_id);
+    const project = projects.find((item) => item.id === values.project_id) as any;
     const memoria = memorias.find((item) => item.project_id === values.project_id && item.period_month === periodMonth);
     if (!project || !memoria) {
-      form.setError("root", { message: "Debe existir una memoria valorizada para el período seleccionado." });
+      form.setError("root", { message: "Debe existir una memoria valorizada aprobada para el período seleccionado." });
       return;
     }
 
@@ -2299,71 +2523,182 @@ export function ValuationsPage() {
       return acc;
     }, {});
 
+    // Costo directo del mes a "valor referencial" (precios unitarios del expediente)
     const lines = Object.entries(grouped).map(([itemId, quantity]) => {
       const item = items.find((row) => row.id === itemId);
       const previousAccumulated = valuationLines
         .filter((line) => line.item_id === itemId)
         .reduce((sum, line) => sum + Number(line.quantity_period), 0);
+      const unitPrice = Number(item?.unit_price || 0);
+      const lineAmount = project.contract_type === "suma_alzada"
+        ? (Number(project.contract_amount) * Number(values.progress_percent || 0)) / 100 / Math.max(1, Object.keys(grouped).length)
+        : quantity * unitPrice;
       return {
         item_id: itemId,
         quantity_period: quantity,
         quantity_accumulated: previousAccumulated + quantity,
-        unit_price_applied: Number(item?.unit_price || 0),
+        unit_price_applied: unitPrice,
         percentage_applied: project.contract_type === "suma_alzada" ? Number(values.progress_percent || 0) : 0,
-        line_amount: project.contract_type === "suma_alzada"
-          ? (Number(project.contract_amount) * Number(values.progress_percent || 0)) / 100
-          : quantity * Number(item?.unit_price || 0),
+        line_amount: lineAmount,
       };
     });
 
-    const grossAmount = project.contract_type === "suma_alzada"
+    const directCostAtRef = project.contract_type === "suma_alzada"
       ? (Number(project.contract_amount) * Number(values.progress_percent || 0)) / 100
       : lines.reduce((sum, line) => sum + line.line_amount, 0);
 
-    const valuationResult = await supabase.from("valuations").insert({
+    // Factor de relación (contrato/valor referencial). Si no hay VR, se asume 1.
+    const refValue = Number(project.reference_value_amount || 0);
+    const relationFactor = refValue > 0 ? Number(project.contract_amount) / refValue : 1;
+
+    // K automático desde la fórmula polinómica + índices INEI del mes
+    let kValue = 1;
+    let kInfo = "Sin reajuste (K=1)";
+    try {
+      const kRes = await lookupK({ data: { project_id: values.project_id, period_month: periodMonth } });
+      if (kRes.ok) {
+        kValue = kRes.k;
+        kInfo = kRes.missingIndices.length
+          ? `K=${kRes.k.toFixed(4)} (faltan índices: ${kRes.missingIndices.join(", ")})`
+          : `K=${kRes.k.toFixed(4)}`;
+      } else {
+        kInfo = kRes.reason === "no_formula"
+          ? "Sin fórmula polinómica registrada — K=1"
+          : "Sin índices INEI cargados para el mes — K=1";
+      }
+    } catch (err) {
+      console.warn("[valuation] lookupK failed", err);
+    }
+
+    // Retención: si es "single", calcular cuánto se ha retenido en valorizaciones previas del proyecto
+    const projectValuations = valuations.filter((v) => v.project_id === values.project_id);
+    const retentionAlreadyRetained = projectValuations.reduce(
+      (sum, v) => sum + Number((v as any).retention_amount || 0),
+      0,
+    );
+
+    const breakdown = computeValuationBreakdown({
+      monthlyDirectCostAtReference: directCostAtRef,
+      overheadPercentage: Number(project.overhead_percentage || 0),
+      profitPercentage: Number(project.profit_percentage || 0),
+      relationFactor,
+      reajusteK: kValue,
+      prevMonthReajusteReintegro: values.reajuste_prev_reintegro ?? 0,
+      reajusteDrnc: values.reajuste_drnc ?? 0,
+      amortDirectAdvance: values.amort_direct_advance ?? 0,
+      amortMaterialsAdvance: values.amort_materials_advance ?? 0,
+      dedDrncDirect: values.ded_drnc_direct ?? 0,
+      dedDrncMaterials: values.ded_drnc_materials ?? 0,
+      otherDeductions: values.other_deductions ?? 0,
+      retentionPercentage: Number(project.guarantee_retention_pct || 0),
+      retentionMode: (project.guarantee_retention_mode as "per_valuation" | "single") || "per_valuation",
+      contractAmount: Number(project.contract_amount || 0),
+      retentionAlreadyRetained,
+    });
+
+    const valuationPayload: Record<string, unknown> = {
       project_id: values.project_id,
       period_month: periodMonth,
       memoria_id: memoria.id,
       total_quantity: entries.reduce((sum, entry) => sum + Number(entry.quantity), 0),
-      progress_percent: project.contract_type === "suma_alzada" ? Number(values.progress_percent || 0) : calculateProjectProgress(project, valuations),
-      gross_amount: grossAmount,
-      deductions_amount: Number(values.deductions_amount),
-      net_amount: grossAmount - Number(values.deductions_amount),
+      progress_percent: project.contract_type === "suma_alzada"
+        ? Number(values.progress_percent || 0)
+        : calculateProjectProgress(project, valuations),
+      gross_amount: breakdown.subtotalReajustado,
+      deductions_amount: breakdown.totalDeductions,
+      net_amount: breakdown.netToContractor,
       created_by: user.id,
       contract_type_snapshot: project.contract_type,
       status: "pending",
-    }).select("id").single();
+      // Hoja de Valorización A–Q
+      direct_cost_amount: breakdown.directCost,
+      overhead_amount: breakdown.overhead,
+      profit_amount: breakdown.profit,
+      subtotal_amount: breakdown.subtotal,
+      reajuste_gross_amount: breakdown.reajusteGross,
+      reajuste_prev_reintegro: breakdown.reajustePrevReintegro,
+      reajuste_drnc_amount: breakdown.reajusteDrnc,
+      subtotal_reajustado: breakdown.subtotalReajustado,
+      amort_direct_advance: breakdown.amortDirectAdvance,
+      amort_materials_advance: breakdown.amortMaterialsAdvance,
+      ded_drnc_direct: breakdown.dedDrncDirect,
+      ded_drnc_materials: breakdown.dedDrncMaterials,
+      other_deductions_amount: breakdown.otherDeductions,
+      total_deductions_amount: breakdown.totalDeductions,
+      net_to_contractor: breakdown.netToContractor,
+      igv_total_amount: breakdown.igvAmount,
+      total_to_invoice: breakdown.totalToInvoice,
+      retention_amount: breakdown.retentionAmount,
+      net_to_pay: breakdown.netToPay,
+      reajuste_k_factor: kValue,
+    };
+
+    const valuationResult = await (supabase.from("valuations").insert(valuationPayload as never) as any).select("id").single();
 
     if (valuationResult.error) {
       form.setError("root", { message: valuationResult.error.message });
       return;
     }
 
-    const linesResult = await supabase.from("valuation_lines").insert(lines.map((line) => ({ ...line, valuation_id: valuationResult.data.id })));
+    const linesResult = await supabase
+      .from("valuation_lines")
+      .insert(lines.map((line) => ({ ...line, valuation_id: valuationResult.data.id })));
     if (linesResult.error) {
       form.setError("root", { message: linesResult.error.message });
       return;
     }
 
-    form.reset({ deductions_amount: 0, progress_percent: 0 });
+    toast.success(`Valorización generada. Neto a pagar: ${formatCurrency(breakdown.netToPay, project.currency_code || "PEN")}. ${kInfo}`);
+    form.reset({
+      progress_percent: 0,
+      amort_direct_advance: 0,
+      amort_materials_advance: 0,
+      ded_drnc_direct: 0,
+      ded_drnc_materials: 0,
+      other_deductions: 0,
+      reajuste_prev_reintegro: 0,
+      reajuste_drnc: 0,
+    });
     await refresh();
   });
 
-  // Status transitions are handled by <WorkflowPanel /> below.
-
   return (
     <AuthGuard>
-      <PageLayout title="Valorizaciones" description="Cálculo mensual condicionado por memoria aprobada y metrados validados.">
+      <PageLayout title="Valorizaciones" description="Hoja de Valorización mensual (A–Q) con factor K automático desde la fórmula polinómica.">
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <Card>
             <CardHeader><CardTitle>Generar valorización</CardTitle></CardHeader>
             <CardContent>
               <Form {...form}>
                 <form className="space-y-4" onSubmit={createValuation}>
-                  <div className="grid gap-4 md:grid-cols-2"><FormField control={form.control} name="project_id" render={({ field }) => <FormItem><FormLabel>Proyecto</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona proyecto" /></SelectTrigger></FormControl><SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} /><FormField control={form.control} name="period_month" render={({ field }) => <FormItem><FormLabel>Periodo</FormLabel><FormControl><Input type="month" {...field} /></FormControl><FormMessage /></FormItem>} /></div>
-                  <div className="grid gap-4 md:grid-cols-2"><FormField control={form.control} name="deductions_amount" render={({ field }) => <FormItem><FormLabel>Deducciones</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>} /><FormField control={form.control} name="progress_percent" render={({ field }) => <FormItem><FormLabel>% avance (suma alzada)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormDescription>Solo aplica para contratos a suma alzada.</FormDescription></FormItem>} /></div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField control={form.control} name="project_id" render={({ field }) => <FormItem><FormLabel>Proyecto</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona proyecto" /></SelectTrigger></FormControl><SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="period_month" render={({ field }) => <FormItem><FormLabel>Periodo</FormLabel><FormControl><Input type="month" {...field} /></FormControl><FormMessage /></FormItem>} />
+                  </div>
+                  <FormField control={form.control} name="progress_percent" render={({ field }) => <FormItem><FormLabel>% avance (solo suma alzada)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormDescription>Solo aplica para contratos a suma alzada.</FormDescription></FormItem>} />
+
+                  <div className="rounded-md border bg-muted/20 p-3">
+                    <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Reajuste</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <FormField control={form.control} name="reajuste_prev_reintegro" render={({ field }) => <FormItem><FormLabel className="text-xs">H — Reintegro reajuste mes anterior</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
+                      <FormField control={form.control} name="reajuste_drnc" render={({ field }) => <FormItem><FormLabel className="text-xs">I — DRNC reajuste</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground">G se calcula automáticamente con K de la fórmula polinómica.</p>
+                  </div>
+
+                  <div className="rounded-md border bg-muted/20 p-3">
+                    <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Deducciones</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <FormField control={form.control} name="amort_direct_advance" render={({ field }) => <FormItem><FormLabel className="text-xs">Amortización adelanto directo</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
+                      <FormField control={form.control} name="amort_materials_advance" render={({ field }) => <FormItem><FormLabel className="text-xs">Amortización adelanto materiales</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
+                      <FormField control={form.control} name="ded_drnc_direct" render={({ field }) => <FormItem><FormLabel className="text-xs">DRNC adelanto directo</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
+                      <FormField control={form.control} name="ded_drnc_materials" render={({ field }) => <FormItem><FormLabel className="text-xs">DRNC adelanto materiales</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
+                      <FormField control={form.control} name="other_deductions" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel className="text-xs">Otras deducciones</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
+                    </div>
+                  </div>
+
                   {form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}
-                  <Button type="submit">Calcular y guardar</Button>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Calculando…" : "Calcular y guardar"}</Button>
                 </form>
               </Form>
             </CardContent>
@@ -2391,6 +2726,7 @@ export function ValuationsPage() {
                   supervisorReviewedAt: v.supervisor_reviewed_at ?? null,
                   supervisorComment: v.supervisor_comment ?? null,
                 };
+                const breakdown = readPersistedBreakdown(valuation);
                 return (
                   <div key={valuation.id} className="mb-4 rounded-lg border border-border p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2400,24 +2736,17 @@ export function ValuationsPage() {
                       </div>
                       <Badge variant="outline">{valuationStatusLabels[valuation.status]}</Badge>
                     </div>
-                    {(() => {
-                      const linkedReajustes = reajustes.filter((r) => r.valuation_id === valuation.id);
-                      const reajusteTotal = linkedReajustes.reduce((sum, r) => sum + Number(r.reajuste_amount), 0);
-                      const netoConReajuste = Number(valuation.net_amount) + reajusteTotal;
-                      return (
-                        <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
-                          <p>Bruto: {formatCurrency(Number(valuation.gross_amount), project?.currency_code || "PEN")}</p>
-                          <p>Deducciones: {formatCurrency(Number(valuation.deductions_amount), project?.currency_code || "PEN")}</p>
-                          <p>Neto: {formatCurrency(Number(valuation.net_amount), project?.currency_code || "PEN")}</p>
-                          {linkedReajustes.length > 0 ? (
-                            <>
-                              <p className="text-primary">Reajuste (K): {formatCurrency(reajusteTotal, project?.currency_code || "PEN")}</p>
-                              <p className="font-medium text-foreground md:col-span-2">Neto + reajuste: {formatCurrency(netoConReajuste, project?.currency_code || "PEN")}</p>
-                            </>
-                          ) : null}
-                        </div>
-                      );
-                    })()}
+
+                    {breakdown ? (
+                      <BreakdownTable breakdown={breakdown} currency={project?.currency_code || "PEN"} kValue={Number((valuation as any).reajuste_k_factor || 1)} />
+                    ) : (
+                      <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
+                        <p>Bruto: {formatCurrency(Number(valuation.gross_amount), project?.currency_code || "PEN")}</p>
+                        <p>Deducciones: {formatCurrency(Number(valuation.deductions_amount), project?.currency_code || "PEN")}</p>
+                        <p>Neto: {formatCurrency(Number(valuation.net_amount), project?.currency_code || "PEN")}</p>
+                      </div>
+                    )}
+
                     <div className="mt-4 flex flex-wrap gap-2">
                       {project ? <Button size="sm" variant="outline" onClick={() => exportValuationPdf(project, valuation, lines, exportCtx)}>PDF</Button> : null}
                       {project ? <Button size="sm" variant="outline" onClick={() => exportValuationWorkbook(project, valuation, lines, exportCtx)}>Excel</Button> : null}
@@ -2435,6 +2764,59 @@ export function ValuationsPage() {
     </AuthGuard>
   );
 }
+
+/** Lee los campos A–Q persistidos en valuations (si la valorización se generó con el nuevo cálculo). */
+function readPersistedBreakdown(valuation: any): ValuationBreakdown | null {
+  if (valuation.subtotal_reajustado == null && valuation.net_to_pay == null) return null;
+  return {
+    directCost: Number(valuation.direct_cost_amount || 0),
+    overhead: Number(valuation.overhead_amount || 0),
+    profit: Number(valuation.profit_amount || 0),
+    subtotal: Number(valuation.subtotal_amount || 0),
+    contractualValuation: Number(valuation.subtotal_amount || 0),
+    reajusteGross: Number(valuation.reajuste_gross_amount || 0),
+    reajustePrevReintegro: Number(valuation.reajuste_prev_reintegro || 0),
+    reajusteDrnc: Number(valuation.reajuste_drnc_amount || 0),
+    subtotalReajustado: Number(valuation.subtotal_reajustado || 0),
+    amortDirectAdvance: Number(valuation.amort_direct_advance || 0),
+    amortMaterialsAdvance: Number(valuation.amort_materials_advance || 0),
+    dedDrncDirect: Number(valuation.ded_drnc_direct || 0),
+    dedDrncMaterials: Number(valuation.ded_drnc_materials || 0),
+    otherDeductions: Number(valuation.other_deductions_amount || 0),
+    totalDeductions: Number(valuation.total_deductions_amount || 0),
+    netToContractor: Number(valuation.net_to_contractor || 0),
+    igvAmount: Number(valuation.igv_total_amount || 0),
+    totalToInvoice: Number(valuation.total_to_invoice || 0),
+    retentionAmount: Number(valuation.retention_amount || 0),
+    netToPay: Number(valuation.net_to_pay || 0),
+  };
+}
+
+function BreakdownTable({ breakdown, currency, kValue }: { breakdown: ValuationBreakdown; currency: string; kValue: number }) {
+  return (
+    <div className="mt-3 overflow-x-auto rounded-md border border-border">
+      <table className="w-full text-xs">
+        <tbody>
+          {BREAKDOWN_ROWS.map((row) => {
+            const value = breakdown[row.key as keyof ValuationBreakdown] as number;
+            const emp = (row as any).emphasize;
+            return (
+              <tr key={row.key} className={emp ? "bg-muted/40 font-semibold" : ""}>
+                <td className="w-8 px-2 py-1 text-center font-mono text-muted-foreground">{row.letter}</td>
+                <td className="px-2 py-1">{row.label}</td>
+                <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(value, currency)}</td>
+              </tr>
+            );
+          })}
+          <tr className="border-t bg-muted/20 text-[11px] text-muted-foreground">
+            <td colSpan={3} className="px-2 py-1">Factor de reajuste K aplicado: <span className="font-mono">{kValue.toFixed(4)}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 
 export function ApprovalsPage() {
   const { memorias, valuations, projects } = useWorkspace();
